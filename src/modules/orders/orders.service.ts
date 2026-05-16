@@ -1,98 +1,135 @@
-import { prisma } from '@/config/prisma';
-import { ApiError } from '@/lib/response';
-import { OrderQueryDto, CreateOrderDto, UpdateOrderDto, ChangeOrderStatusDto } from '@/modules/orders/orders.schema';
-import { StatusType } from '@prisma/client';
+import { prisma } from "@/config/prisma";
+import { StatusType } from "@prisma/client";
+import { ApiError } from "@/lib/response";
+import {
+  OrderQueryDto,
+  CreateOrderDto,
+  UpdateOrderDto,
+  ChangeOrderStatusDto,
+} from "@/modules/orders/orders.schema";
 
 async function assertOrderOwnership(orderId: number, storeId: number) {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
-  if (!order) throw ApiError.notFound('Order');
+  if (!order) throw ApiError.notFound("Order");
   if (order.storeId !== storeId) throw ApiError.forbidden();
   return order;
 }
 
-async function recomputeOrderStatusSnapshot(tx: any, orderId: number) {
-  const remainingItems = await tx.orderItem.findMany({
-    where: { orderId },
-    include: { status: true },
+async function enrichItems(orders: any[]): Promise<any[]> {
+  const allNames = [
+    ...new Set(orders.flatMap((o) => o.items.map((i: any) => i.nameSnapshot))),
+  ];
+  const menuItems = await prisma.menuItem.findMany({
+    where: { name: { in: allNames } },
   });
+  const nameToId = new Map(menuItems.map((m) => [m.name, m.id]));
 
-  if (remainingItems.length === 0) {
-    const order = await tx.order.update({
-      where: { id: orderId },
-      data: { statusSnapshot: null },
-    });
-    if (order.tableId) {
-      await tx.table.updateMany({
-        where: { id: order.tableId, orderId },
-        data: { orderId: null },
-      });
-    }
+  return orders.map((order) => ({
+    ...order,
+    items: order.items.map((item: any) => ({
+      ...item,
+      menuItemId: nameToId.get(item.nameSnapshot) ?? null,
+    })),
+  }));
+}
+
+async function recomputeOrderStatusSnapshot(tx: any, orderId: number) {
+  const order = await tx.order.findUnique({
+    where: { id: orderId },
+    include: { items: true },
+  });
+  if (!order) return null;
+
+  if (order.items.length === 0) {
     return null;
   }
 
-  let lowestStatus = remainingItems[0].status;
-  for (const item of remainingItems) {
-    if (item.status.sortOrder < lowestStatus.sortOrder) {
-      lowestStatus = item.status;
+  // Fetch all statuses to get sortOrder for comparison
+  const allStatuses = await tx.status.findMany({
+    where: { storeId: order.storeId },
+  });
+  const statusSortMap = new Map(
+    allStatuses.map((s: any) => [s.id, s.sortOrder]),
+  );
+
+  // Find the item with lowest sortOrder (earliest in the workflow)
+  let lowestItem = order.items[0];
+  for (const item of order.items) {
+    const currentOrder = statusSortMap.get(item.statusId) ?? 99;
+    const lowestOrder = statusSortMap.get(lowestItem.statusId) ?? 99;
+    if (currentOrder < lowestOrder) {
+      lowestItem = item;
     }
   }
 
-  const order = await tx.order.update({
+  // Check if the lowest is the end status
+  const endStatus = allStatuses.find((s: any) => s.type === StatusType.end);
+  const isEnd = endStatus && lowestItem.statusId === endStatus.id;
+
+  // Always keep the lowest status (never null)
+  await tx.order.update({
     where: { id: orderId },
-    data: { statusSnapshot: lowestStatus.name },
+    data: {
+      statusId: lowestItem.statusId,
+      statusSnapshot: lowestItem.statusSnapshot,
+    },
   });
 
-  if (order.tableId) {
-    if (lowestStatus.type === 'end') {
-      await tx.table.updateMany({
-        where: { id: order.tableId, orderId },
-        data: { orderId: null },
-      });
-    } else {
+  // Update table orderId: null if end status (free the table)
+  if (order.tableSnapshot) {
+    const table = await tx.table.findFirst({
+      where: { name: order.tableSnapshot, area: { storeId: order.storeId } },
+    });
+    if (table) {
       await tx.table.update({
-        where: { id: order.tableId },
-        data: { orderId },
+        where: { id: table.id },
+        data: { orderId: isEnd ? null : orderId },
       });
     }
   }
 
-  return lowestStatus.name;
+  return lowestItem.statusSnapshot;
 }
 
 export async function listOrders(storeId: number, query: OrderQueryDto) {
   const limit = query.limit || 20;
+  const sortOrder = query.sortOrder || 'desc';
   const whereClause: any = { storeId };
 
   if (query.statusId) {
-    whereClause.items = {
-      some: { statusId: query.statusId },
-    };
+    whereClause.items = { some: { statusId: query.statusId } };
   }
 
   if (query.date) {
     const startOfDay = new Date(`${query.date}T00:00:00.000Z`);
     const endOfDay = new Date(`${query.date}T23:59:59.999Z`);
-    whereClause.createdAt = {
-      gte: startOfDay,
-      lte: endOfDay,
-    };
+    whereClause.createdAt = { gte: startOfDay, lte: endOfDay };
   }
 
   if (query.cursor) {
-    whereClause.id = { lt: query.cursor };
+    const cursorItem = await prisma.order.findUnique({
+      where: { id: query.cursor },
+      select: { createdAt: true, id: true },
+    });
+    if (cursorItem) {
+      if (sortOrder === 'asc') {
+        whereClause.OR = [
+          { createdAt: { gt: cursorItem.createdAt } },
+          { createdAt: cursorItem.createdAt, id: { gt: cursorItem.id } },
+        ];
+      } else {
+        whereClause.OR = [
+          { createdAt: { lt: cursorItem.createdAt } },
+          { createdAt: cursorItem.createdAt, id: { lt: cursorItem.id } },
+        ];
+      }
+    }
   }
 
   const data = await prisma.order.findMany({
     where: whereClause,
-    include: {
-      table: { select: { id: true, name: true } },
-      items: {
-        include: {
-          status: { select: { id: true, name: true, type: true } },
-        },
-      },
-    },
-    orderBy: { id: 'desc' },
+    include: { items: true },
+    orderBy: { createdAt: sortOrder },
     take: limit + 1,
   });
 
@@ -102,85 +139,77 @@ export async function listOrders(storeId: number, query: OrderQueryDto) {
     nextCursor = lastItem?.id || null;
   }
 
-  return {
-    items: data,
-    nextCursor,
-  };
+  return { items: data, nextCursor };
 }
 
 export async function getOrder(storeId: number, orderId: number) {
   await assertOrderOwnership(orderId, storeId);
-  return prisma.order.findUnique({
+  const order = await prisma.order.findUnique({
     where: { id: orderId },
-    include: {
-      table: true,
-      items: {
-        include: {
-          status: true,
-          menuItem: true,
-        },
-        orderBy: { status: { sortOrder: 'asc' } },
-      },
-    },
+    include: { items: { orderBy: { id: "asc" } } },
   });
+  if (!order) return null;
+  const enriched = await enrichItems([order]);
+  return enriched[0];
 }
 
 export async function createOrder(storeId: number, dto: CreateOrderDto) {
   return prisma.$transaction(async (tx) => {
-    // 1. Tìm trạng thái bắt đầu (start)
+    // 1. Lấy trạng thái bắt đầu (start) — dùng để gán cho tất cả items mới
     const startStatus = await tx.status.findFirst({
       where: { storeId, type: StatusType.start },
-      orderBy: { sortOrder: 'asc' },
+      orderBy: { sortOrder: "asc" },
     });
-    if (!startStatus) throw ApiError.internal('Cửa hàng chưa cấu hình trạng thái bắt đầu đơn hàng');
+    if (!startStatus)
+      throw ApiError.internal(
+        "Cửa hàng chưa cấu hình trạng thái bắt đầu đơn hàng",
+      );
 
-    // 2. Tìm orderNumber tiếp theo
-    const lastOrder = await tx.order.findFirst({
-      where: { storeId },
-      orderBy: { orderNumber: 'desc' },
-    });
-    const nextOrderNumber = (lastOrder?.orderNumber ?? 0) + 1;
-
-    // 3. Xử lý thông tin bàn và snapshot tên bàn
-    let tableSnapshot: string | null = null;
-    if (dto.tableId) {
-      const table = await tx.table.findUnique({
-        where: { id: dto.tableId },
-        include: { area: true },
+    // 3. Tra cứu bàn theo tên (tableName) → lấy id để gán vào order
+    let tableId: number | null = null;
+    if (dto.tableName) {
+      const table = await tx.table.findFirst({
+        where: { name: dto.tableName, area: { storeId } },
       });
-      if (!table || table.area.storeId !== storeId) {
-        throw ApiError.badRequest('Bàn không hợp lệ hoặc không thuộc cửa hàng này');
-      }
-      tableSnapshot = `${table.area.name} - ${table.name}`;
+      if (table) tableId = table.id;
     }
 
-    // 4. Tạo bản ghi Order chính
+    // 4. Tạo bản ghi Order (chưa có items)
     const order = await tx.order.create({
       data: {
         storeId,
-        tableId: dto.tableId,
-        tableSnapshot,
-        statusSnapshot: startStatus.name,
-        orderNumber: nextOrderNumber,
+        tableId, // FK → Table (để biết order thuộc bàn nào)
+        tableSnapshot: dto.tableName || null, // snapshot tên bàn (hiển thị, không phụ thuộc FK)
+        statusId: startStatus.id, // FK → Status (trạng thái hiện tại của order)
+        statusSnapshot: startStatus.name, // snapshot tên trạng thái (hiển thị)
       },
     });
 
-    // 5. Chuẩn bị dữ liệu OrderItems kèm snapshot giá/tên
+    // 5. Đánh dấu bàn đang có người: Table.orderId = order.id
+    if (tableId) {
+      await tx.table.update({
+        where: { id: tableId },
+        data: { orderId: order.id },
+      });
+    }
+
+    // 6. Tạo từng OrderItem (món ăn) cho đơn hàng
     for (const itemInput of dto.items) {
       const menuItem = await tx.menuItem.findUnique({
         where: { id: itemInput.menuItemId },
         include: { category: true },
       });
-
       if (!menuItem || menuItem.category.storeId !== storeId) {
-        throw ApiError.badRequest(`Món ăn với ID ${itemInput.menuItemId} không tồn tại trong thực đơn cửa hàng`);
+        throw ApiError.badRequest(
+          `Món ăn với ID ${itemInput.menuItemId} không tồn tại trong thực đơn cửa hàng`,
+        );
       }
 
       await tx.orderItem.create({
         data: {
           orderId: order.id,
-          menuItemId: menuItem.id,
           statusId: startStatus.id,
+          statusSnapshot: startStatus.name,
           nameSnapshot: menuItem.name,
           priceSnapshot: menuItem.price,
           qty: itemInput.qty,
@@ -190,213 +219,189 @@ export async function createOrder(storeId: number, dto: CreateOrderDto) {
 
     return tx.order.findUnique({
       where: { id: order.id },
-      include: {
-        table: true,
-        items: { include: { status: true, menuItem: true } },
-      },
+      include: { items: true },
     });
   });
 }
 
-export async function updateOrder(storeId: number, orderId: number, dto: UpdateOrderDto) {
+export async function updateOrder(
+  storeId: number,
+  orderId: number,
+  dto: UpdateOrderDto,
+) {
   await assertOrderOwnership(orderId, storeId);
 
   return prisma.$transaction(async (tx) => {
-    // 1. Cập nhật bàn nếu có thay đổi
-    let tableSnapshot: string | null | undefined = undefined;
-    if (dto.tableId !== undefined) {
-      const oldOrder = await tx.order.findUnique({ where: { id: orderId } });
-      if (oldOrder?.tableId && oldOrder.tableId !== dto.tableId) {
-        await tx.table.updateMany({
-          where: { id: oldOrder.tableId, orderId },
-          data: { orderId: null },
-        });
-      }
-
-      if (dto.tableId) {
-        const table = await tx.table.findUnique({
-          where: { id: dto.tableId },
-          include: { area: true },
-        });
-        if (!table || table.area.storeId !== storeId) {
-          throw ApiError.badRequest('Bàn không hợp lệ');
-        }
-        tableSnapshot = `${table.area.name} - ${table.name}`;
-
-        await tx.table.update({
-          where: { id: dto.tableId },
-          data: { orderId },
-        });
-      } else {
-        tableSnapshot = null;
-      }
-
+    // Kiểm tra nếu đơn hàng ở trạng thái end thì không cho chỉnh sửa
+    const order = await tx.order.findUnique({
+      where: { id: orderId },
+      include: { status: true },
+    });
+    if (order?.status?.type === StatusType.end) {
+      throw ApiError.forbidden("Không thể chỉnh sửa đơn hàng đã hoàn thành");
+    }
+    if (dto.tableName !== undefined) {
       await tx.order.update({
         where: { id: orderId },
-        data: { tableId: dto.tableId, tableSnapshot },
+        data: { tableSnapshot: dto.tableName || null },
       });
     }
 
-    // 2. Tìm trạng thái start để chèn dòng mới nếu tăng số lượng
     const startStatus = await tx.status.findFirst({
       where: { storeId, type: StatusType.start },
-      orderBy: { sortOrder: 'asc' },
+      orderBy: { sortOrder: "asc" },
     });
-    if (!startStatus) throw ApiError.internal('Lỗi cấu hình trạng thái bắt đầu');
+    if (!startStatus)
+      throw ApiError.internal("Lỗi cấu hình trạng thái bắt đầu");
 
-    // 3. Xử lý logic merge từng món theo đúng quy chuẩn tài liệu thiết kế
     for (const requestedItem of dto.items) {
       const { menuItemId, qty: targetQty } = requestedItem;
 
-      // Lấy các dòng orderItem hiện tại của món này, sắp xếp theo sortOrder giảm dần (trạng thái cao nhất đứng trước)
       const currentRows = await tx.orderItem.findMany({
-        where: { orderId, menuItemId },
-        include: { status: true },
-        orderBy: { status: { sortOrder: 'desc' } },
+        where: {
+          orderId,
+          nameSnapshot: (
+            await tx.menuItem.findUnique({ where: { id: menuItemId } })
+          )?.name,
+        },
+        orderBy: { id: "desc" },
       });
-
       const currentTotalQty = currentRows.reduce((sum, r) => sum + r.qty, 0);
 
       if (targetQty === 0) {
-        // Xóa tất cả dòng của món này
-        await tx.orderItem.deleteMany({
-          where: { orderId, menuItemId },
-        });
+        for (const row of currentRows) {
+          await tx.orderItem.delete({ where: { id: row.id } });
+        }
       } else if (targetQty > currentTotalQty) {
-        // Thêm dòng mới với trạng thái start cho phần chênh lệch tăng
-        const menuItem = await tx.menuItem.findUnique({ where: { id: menuItemId } });
-        if (!menuItem) throw ApiError.badRequest('Món ăn không tồn tại');
-
+        const menuItem = await tx.menuItem.findUnique({
+          where: { id: menuItemId },
+        });
+        if (!menuItem) throw ApiError.badRequest("Món ăn không tồn tại");
         await tx.orderItem.create({
           data: {
             orderId,
-            menuItemId,
             statusId: startStatus.id,
+            statusSnapshot: startStatus.name,
             nameSnapshot: menuItem.name,
             priceSnapshot: menuItem.price,
             qty: targetQty - currentTotalQty,
           },
         });
       } else if (targetQty < currentTotalQty) {
-        // Giảm số lượng ở các dòng có trạng thái cao nhất trước
         let delta = currentTotalQty - targetQty;
-
         for (const row of currentRows) {
           if (delta <= 0) break;
-
           if (row.qty <= delta) {
-            // Xóa hoàn toàn dòng này
             await tx.orderItem.delete({ where: { id: row.id } });
             delta -= row.qty;
           } else {
-            // Giảm bớt số lượng dòng này
             await tx.orderItem.update({
               where: { id: row.id },
               data: { qty: row.qty - delta },
             });
             delta = 0;
-            break;
           }
         }
       }
     }
 
-    // 4. Tính lại statusSnapshot của đơn hàng
     await recomputeOrderStatusSnapshot(tx, orderId);
-
     return tx.order.findUnique({
       where: { id: orderId },
-      include: {
-        table: true,
-        items: { include: { status: true, menuItem: true } },
-      },
+      include: { items: true },
     });
   });
 }
 
-export async function advanceOrderStatus(storeId: number, orderId: number, dto: ChangeOrderStatusDto) {
+export async function advanceOrderStatus(
+  storeId: number,
+  orderId: number,
+  dto: ChangeOrderStatusDto,
+) {
   await assertOrderOwnership(orderId, storeId);
 
   return prisma.$transaction(async (tx) => {
-    const currentStatus = await tx.status.findUnique({ where: { id: dto.fromStatusId } });
+    const currentStatus = await tx.status.findUnique({
+      where: { id: dto.fromStatusId },
+    });
     if (!currentStatus || currentStatus.storeId !== storeId) {
-      throw ApiError.badRequest('Trạng thái nguồn không hợp lệ');
+      throw ApiError.badRequest("Trạng thái nguồn không hợp lệ");
     }
 
-    // Tìm trạng thái kế tiếp theo sortOrder
     const nextStatus = await tx.status.findFirst({
-      where: {
-        storeId,
-        sortOrder: { gt: currentStatus.sortOrder },
-      },
-      orderBy: { sortOrder: 'asc' },
+      where: { storeId, sortOrder: { gt: currentStatus.sortOrder } },
+      orderBy: { sortOrder: "asc" },
     });
-
     if (!nextStatus) {
-      throw ApiError.badRequest('Món ăn đã ở bước xử lý cuối cùng, không thể chuyển tiếp');
+      throw ApiError.badRequest(
+        "Món ăn đã ở bước xử lý cuối cùng, không thể chuyển tiếp",
+      );
     }
 
-    // Chuyển tất cả order_items đang ở fromStatusId sang nextStatus.id
+    const nextSnapshot = nextStatus.name;
+
     await tx.orderItem.updateMany({
       where: { orderId, statusId: dto.fromStatusId },
-      data: { statusId: nextStatus.id },
+      data: { statusId: nextStatus.id, statusSnapshot: nextSnapshot },
     });
 
-    // Cập nhật statusSnapshot
     await recomputeOrderStatusSnapshot(tx, orderId);
-
     return tx.order.findUnique({
       where: { id: orderId },
-      include: {
-        table: true,
-        items: { include: { status: true, menuItem: true } },
-      },
+      include: { items: true },
     });
   });
 }
 
-export async function revertOrderStatus(storeId: number, orderId: number, dto: ChangeOrderStatusDto) {
+export async function revertOrderStatus(
+  storeId: number,
+  orderId: number,
+  dto: ChangeOrderStatusDto,
+) {
   await assertOrderOwnership(orderId, storeId);
 
   return prisma.$transaction(async (tx) => {
-    const currentStatus = await tx.status.findUnique({ where: { id: dto.fromStatusId } });
+    const currentStatus = await tx.status.findUnique({
+      where: { id: dto.fromStatusId },
+    });
     if (!currentStatus || currentStatus.storeId !== storeId) {
-      throw ApiError.badRequest('Trạng thái nguồn không hợp lệ');
+      throw ApiError.badRequest("Trạng thái nguồn không hợp lệ");
     }
 
-    // Tìm trạng thái liền trước theo sortOrder
     const prevStatus = await tx.status.findFirst({
-      where: {
-        storeId,
-        sortOrder: { lt: currentStatus.sortOrder },
-      },
-      orderBy: { sortOrder: 'desc' },
+      where: { storeId, sortOrder: { lt: currentStatus.sortOrder } },
+      orderBy: { sortOrder: "desc" },
     });
-
     if (!prevStatus) {
-      throw ApiError.badRequest('Món ăn đang ở bước xử lý đầu tiên, không thể quay lại');
+      throw ApiError.badRequest(
+        "Món ăn đang ở bước xử lý đầu tiên, không thể quay lại",
+      );
     }
 
     await tx.orderItem.updateMany({
       where: { orderId, statusId: dto.fromStatusId },
-      data: { statusId: prevStatus.id },
+      data: { statusId: prevStatus.id, statusSnapshot: prevStatus.name },
     });
 
     await recomputeOrderStatusSnapshot(tx, orderId);
-
     return tx.order.findUnique({
       where: { id: orderId },
-      include: {
-        table: true,
-        items: { include: { status: true, menuItem: true } },
-      },
+      include: { items: true },
     });
   });
 }
 
 export async function deleteOrder(storeId: number, orderId: number) {
-  await assertOrderOwnership(orderId, storeId);
-  await prisma.order.delete({
+  const order = await assertOrderOwnership(orderId, storeId);
+
+  // Kiểm tra nếu đơn hàng ở trạng thái end thì không cho xóa
+  const orderWithStatus = await prisma.order.findUnique({
     where: { id: orderId },
+    include: { status: true },
   });
+  if (orderWithStatus?.status?.type === StatusType.end) {
+    throw ApiError.forbidden("Không thể xóa đơn hàng đã hoàn thành");
+  }
+
+  await prisma.order.delete({ where: { id: orderId } });
 }

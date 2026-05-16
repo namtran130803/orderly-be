@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 export const dashboardQuerySchema = z.object({
-  from: z.string().date('Định dạng ngày bắt đầu không hợp lệ'),
-  to:   z.string().date('Định dạng ngày kết thúc không hợp lệ'),
+  from: z.string(),
+  to:   z.string(),
 });
 
 export const dashboardParamsSchema = z.object({

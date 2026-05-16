@@ -7,6 +7,7 @@ const router = Router({ mergeParams: true });
 
 router.use(authenticate, requireStoreAccess);
 
+router.get('/', controller.list);
 router.put('/:tableId', controller.updateTable);
 router.delete('/:tableId', controller.deleteTable);
 

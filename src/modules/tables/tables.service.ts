@@ -1,6 +1,14 @@
 import { prisma } from '@/config/prisma';
 import { ApiError } from '@/lib/response';
 
+export async function listTables(storeId: number) {
+  return prisma.table.findMany({
+    where: { area: { storeId } },
+    include: { area: { select: { id: true, name: true } } },
+    orderBy: [{ area: { sortOrder: 'asc' } }, { sortOrder: 'asc' }],
+  });
+}
+
 export async function updateTable(storeId: number, tableId: number, name: string) {
   const table = await prisma.table.findUnique({
     where: { id: tableId },

@@ -24,12 +24,21 @@ export async function listExpenses(storeId: number, query: ExpenseQueryDto) {
   }
 
   if (query.cursor) {
-    whereClause.id = { lt: query.cursor };
+    const cursorItem = await prisma.expense.findUnique({
+      where: { id: query.cursor },
+      select: { rawDate: true, id: true },
+    });
+    if (cursorItem) {
+      whereClause.OR = [
+        { rawDate: { lt: cursorItem.rawDate } },
+        { rawDate: cursorItem.rawDate, id: { lt: cursorItem.id } },
+      ];
+    }
   }
 
   const data = await prisma.expense.findMany({
     where: whereClause,
-    orderBy: { id: 'desc' },
+    orderBy: [{ rawDate: 'desc' }, { id: 'desc' }],
     take: limit + 1,
   });
 
@@ -39,10 +48,7 @@ export async function listExpenses(storeId: number, query: ExpenseQueryDto) {
     nextCursor = lastItem?.id || null;
   }
 
-  return {
-    items: data,
-    nextCursor,
-  };
+  return { items: data, nextCursor };
 }
 
 export async function createExpense(storeId: number, dto: CreateExpenseDto) {
@@ -60,14 +66,17 @@ export async function createExpense(storeId: number, dto: CreateExpenseDto) {
 }
 
 export async function updateExpense(storeId: number, invId: number, dto: UpdateExpenseDto) {
-  await assertExpenseOwnership(invId, storeId);
+  const expense = await assertExpenseOwnership(invId, storeId);
 
   const updateData: any = {};
   if (dto.title !== undefined) updateData.title = dto.title;
   if (dto.description !== undefined) updateData.description = dto.description;
   if (dto.amount !== undefined) updateData.amount = dto.amount;
   if (dto.rawDate !== undefined) {
-    updateData.rawDate = new Date(`${dto.rawDate}T00:00:00.000Z`);
+    const existingDateStr = expense.rawDate.toISOString().split('T')[0];
+    if (dto.rawDate !== existingDateStr) {
+      updateData.rawDate = new Date(`${dto.rawDate}T00:00:00.000Z`);
+    }
   }
 
   return prisma.expense.update({

@@ -1,61 +1,62 @@
-import { prisma } from '@/config/prisma';
-import { DashboardQueryDto } from '@/modules/dashboard/dashboard.schema';
+import { prisma } from "@/config/prisma";
+import { StatusType } from "@prisma/client";
+import { DashboardQueryDto } from "@/modules/dashboard/dashboard.schema";
 
-export async function getDashboardStats(storeId: number, query: DashboardQueryDto) {
-  // 1. Thực thi câu lệnh truy vấn SQL thô tối ưu doanh thu và số lượng đơn hàng theo tài liệu thiết kế
-  const sqlResult = await prisma.$queryRaw<any[]>`
-    SELECT
-      COALESCE(SUM(oi.price_snapshot * oi.qty)
-        FILTER (WHERE s.type = 'end'), 0)                    AS revenue,
-      COUNT(DISTINCT o.id)
-        FILTER (WHERE o.status_snapshot = end_status.name)   AS order_count
-    FROM orders o
-    JOIN order_items oi ON oi.order_id = o.id
-    JOIN statuses s     ON s.id = oi.status_id
-    CROSS JOIN (
-      SELECT name FROM statuses
-      WHERE store_id = ${storeId} AND type = 'end' LIMIT 1
-    ) AS end_status
+export async function getDashboardStats(
+  storeId: number,
+  query: DashboardQueryDto,
+) {
+  const startDate = new Date(query.from);
+  const endDate = new Date(query.to);
+
+  const endStatus = await prisma.status.findFirst({
+    where: { storeId, type: StatusType.end },
+  });
+
+  // 1. Revenue: tổng tiền từ các order item thuộc đơn đã hoàn thành (end status)
+  // Dùng raw SQL vì cần tính price_snapshot * qty
+  const revenueResult = await prisma.$queryRaw<{ total: string }[]>`
+    SELECT COALESCE(SUM(oi.price_snapshot * oi.qty), 0) AS total
+    FROM order_items oi
+    JOIN orders o ON o.id = oi.order_id
     WHERE o.store_id = ${storeId}
-      AND o.created_at >= ${query.from}::timestamptz
-      AND o.created_at <  ${query.to}::timestamptz + INTERVAL '1 day';
+      AND o.created_at >= ${startDate}
+      AND o.created_at <= ${endDate}
+      AND o.status_id = ${endStatus?.id ?? 0}
   `;
+  const revenue = Number(revenueResult[0]?.total ?? 0);
 
-  const rawRow = sqlResult?.[0] ?? {};
-  const revenue = Number(rawRow.revenue ?? 0);
-  const orderCount = Number(rawRow.order_count ?? 0);
+  // 2. Order count: tổng số đơn tạo trong kỳ (không phân biệt trạng thái)
+  const orderCount = await prisma.order.count({
+    where: {
+      storeId,
+      createdAt: { gte: startDate, lte: endDate },
+    },
+  });
 
-  // 2. Tính toán tổng chi phí (expense) từ các phiếu chi
+  // 3. Expense: tổng chi tiêu từ các phiếu chi trong kỳ
   const expenseResult = await prisma.expense.aggregate({
     where: {
       storeId,
-      rawDate: {
-        gte: new Date(`${query.from}T00:00:00.000Z`),
-        lte: new Date(`${query.to}T23:59:59.999Z`),
-      },
+      rawDate: { gte: startDate, lte: endDate },
     },
     _sum: { amount: true },
   });
   const expense = Number(expenseResult._sum.amount ?? 0);
 
-  // 3. Truy vấn danh sách Top món bán chạy nhất (đã hoàn thành)
+  // 4. Top items: món bán chạy nhất (chỉ tính các item trong đơn đã hoàn thành)
   const topItemsData = await prisma.orderItem.groupBy({
-    by: ['nameSnapshot'],
+    by: ["nameSnapshot"],
     where: {
       order: {
         storeId,
-        createdAt: {
-          gte: new Date(`${query.from}T00:00:00.000Z`),
-          lte: new Date(`${query.to}T23:59:59.999Z`),
-        },
-      },
-      status: {
-        type: 'end',
+        createdAt: { gte: startDate, lte: endDate },
+        statusId: endStatus?.id,
       },
     },
     _sum: { qty: true },
     orderBy: {
-      _sum: { qty: 'desc' },
+      _sum: { qty: "desc" },
     },
     take: 5,
   });

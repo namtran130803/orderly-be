@@ -103,10 +103,6 @@ export const commonSchemas: Record<string, any> = {
       id:        { type: 'integer', example: 1 },
       name:      { type: 'string', example: 'Tầng 1' },
       sortOrder: { type: 'integer', example: 1 },
-      tables: {
-        type: 'array',
-        items: { $ref: '#/components/schemas/Table' },
-      },
     },
   },
 
@@ -120,32 +116,32 @@ export const commonSchemas: Record<string, any> = {
     },
   },
 
-  OrderItem: {
-    type: 'object',
-    properties: {
-      id:            { type: 'integer', example: 1 },
-      menuItemId:    { type: 'integer', example: 1 },
-      statusId:      { type: 'integer', example: 1 },
-      nameSnapshot:  { type: 'string', example: 'Cà phê Sữa đá' },
-      priceSnapshot: { type: 'integer', example: 29000 },
-      qty:           { type: 'integer', example: 2 },
-      status:        { $ref: '#/components/schemas/Status' },
-    },
-  },
-
   Order: {
     type: 'object',
     properties: {
       id:             { type: 'integer', example: 1 },
-      orderNumber:    { type: 'integer', example: 101 },
-      tableId:        { type: 'integer', nullable: true, example: 3 },
-      tableSnapshot:  { type: 'string', nullable: true, example: 'Tầng 1 - Bàn 1' },
+      tableId:        { type: 'integer', nullable: true, example: 1 },
+      tableSnapshot:  { type: 'string', nullable: true, example: 'Bàn 101' },
+      statusId:       { type: 'integer', nullable: true, example: 1 },
       statusSnapshot: { type: 'string', nullable: true, example: 'Chờ xử lý' },
       createdAt:      { type: 'string', format: 'date-time' },
       items: {
         type: 'array',
         items: { $ref: '#/components/schemas/OrderItem' },
       },
+    },
+  },
+
+  OrderItem: {
+    type: 'object',
+    properties: {
+      id:             { type: 'integer', example: 1 },
+      menuItemId:     { type: 'integer', nullable: true, example: 1 },
+      statusId:       { type: 'integer', nullable: true, example: 1 },
+      statusSnapshot: { type: 'string', nullable: true, example: 'Đang pha chế' },
+      nameSnapshot:   { type: 'string', example: 'Cà phê Sữa đá' },
+      priceSnapshot:  { type: 'integer', example: 29000 },
+      qty:            { type: 'integer', example: 2 },
     },
   },
 

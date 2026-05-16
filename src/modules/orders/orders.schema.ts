@@ -3,8 +3,9 @@ import { paginationSchema } from '@/lib/pagination';
 
 export const orderQuerySchema = paginationSchema.extend({
   statusId: z.coerce.number().int().positive().optional(),
-  date:     z.string().date().optional(), // YYYY-MM-DD
+  date:     z.string().date().optional(),
   cursor:   z.coerce.number().int().positive().optional(),
+  sortOrder: z.enum(['asc', 'desc']).optional(),
 });
 
 export const orderItemInputSchema = z.object({
@@ -13,13 +14,13 @@ export const orderItemInputSchema = z.object({
 });
 
 export const createOrderSchema = z.object({
-  tableId: z.coerce.number().int().positive().optional().nullable(),
-  items:   z.array(orderItemInputSchema).min(1, 'Đơn hàng phải có ít nhất 1 món'),
+  tableName: z.string().optional().nullable(),
+  items:     z.array(orderItemInputSchema).min(1, 'Đơn hàng phải có ít nhất 1 món'),
 });
 
 export const updateOrderSchema = z.object({
-  tableId: z.coerce.number().int().positive().optional().nullable(),
-  items:   z.array(orderItemInputSchema),
+  tableName: z.string().optional().nullable(),
+  items:     z.array(orderItemInputSchema),
 });
 
 export const changeOrderStatusSchema = z.object({

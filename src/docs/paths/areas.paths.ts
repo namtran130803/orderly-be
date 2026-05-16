@@ -14,7 +14,7 @@ export const areaPaths: PathsObject = {
   '/api/stores/{storeId}/areas': {
     get: {
       tags: ['Areas'],
-      summary: 'Danh sách khu vực kèm bàn của cửa hàng',
+      summary: 'Danh sách khu vực của cửa hàng',
       parameters: [storeIdParam],
       responses: {
         200: {

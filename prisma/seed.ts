@@ -1,22 +1,21 @@
-import { PrismaClient, StatusType } from '@prisma/client';
-import bcrypt from 'bcrypt';
-import { DEFAULT_STATUSES } from '../src/lib/constants';
+import { PrismaClient, StatusType } from "@prisma/client";
+import bcrypt from "bcrypt";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Bắt đầu seed dữ liệu mẫu...');
+  console.log("Bắt đầu seed dữ liệu mẫu...");
 
   // Xóa dữ liệu cũ nếu cần (tùy chọn, ở đây ta dùng upsert để an toàn khi chạy nhiều lần)
-  const passwordHash = await bcrypt.hash('password123', 12);
+  const passwordHash = await bcrypt.hash("password123", 12);
 
   // 1. Tạo hoặc Tìm User
   const user = await prisma.user.upsert({
-    where: { phone: '0901234567' },
+    where: { phone: "0901234567" },
     update: {},
     create: {
-      name: 'Trần Trọng Nam',
-      phone: '0901234567',
+      name: "Trần Trọng Nam",
+      phone: "0901234567",
       passwordHash,
     },
   });
@@ -30,17 +29,19 @@ async function main() {
     store = await prisma.store.create({
       data: {
         userId: user.id,
-        name: 'Orderly Coffee & Tea',
-        address: '123 Đường Nguyễn Văn Linh, Quận 7, TP.HCM',
+        name: "Orderly Coffee & Tea",
+        address: "123 Đường Nguyễn Văn Linh, Quận 7, TP.HCM",
       },
     });
   }
   console.log(`🏪 Cửa hàng chính: ${store.name}`);
 
   // Xóa toàn bộ dữ liệu cũ của tất cả các cửa hàng để nạp mới hoàn toàn tránh trùng lặp
-  console.log('🧹 Đang dọn dẹp dữ liệu cũ (Categories, Areas, Tables, MenuItems, Invoices, Orders, Statuses)...');
+  console.log(
+    "🧹 Đang dọn dẹp dữ liệu cũ (Categories, Areas, Tables, MenuItems, Invoices, Orders, Statuses)...",
+  );
   await prisma.order.deleteMany();
-  await prisma.invoice.deleteMany();
+  await prisma.expense.deleteMany();
   await prisma.table.deleteMany();
   await prisma.area.deleteMany();
   await prisma.menuItem.deleteMany();
@@ -55,134 +56,388 @@ async function main() {
     // 3. Tạo Statuses chuẩn
     await prisma.status.createMany({
       data: [
-        { storeId: s.id, name: DEFAULT_STATUSES.START, type: StatusType.start, sortOrder: 1 },
-        { storeId: s.id, name: DEFAULT_STATUSES.END, type: StatusType.end, sortOrder: 20 },
+        { storeId: s.id, name: "Chờ xử lý", type: StatusType.start, sortOrder: 1 },
+        { storeId: s.id, name: "Đang pha chế", type: StatusType.mid, sortOrder: 5 },
+        { storeId: s.id, name: "Kiểm tra chất lượng", type: StatusType.mid, sortOrder: 10 },
+        { storeId: s.id, name: "Đóng gói", type: StatusType.mid, sortOrder: 15 },
+        { storeId: s.id, name: "Hoàn thành", type: StatusType.end, sortOrder: 20 },
       ],
     });
 
     // 4. Tạo Categories
-    const catCoffee = await prisma.category.create({ data: { storeId: s.id, name: 'Cà phê truyền thống', sortOrder: 1 } });
-    const catMachine = await prisma.category.create({ data: { storeId: s.id, name: 'Cà phê pha máy', sortOrder: 2 } });
-    const catTea = await prisma.category.create({ data: { storeId: s.id, name: 'Trà Trái cây & Trà Sữa', sortOrder: 3 } });
-    const catIceBlended = await prisma.category.create({ data: { storeId: s.id, name: 'Đá xay (Ice Blended)', sortOrder: 4 } });
-    const catCake = await prisma.category.create({ data: { storeId: s.id, name: 'Bánh ngọt & Đồ ăn nhẹ', sortOrder: 5 } });
+    const catCoffee = await prisma.category.create({
+      data: { storeId: s.id, name: "Cà phê truyền thống", sortOrder: 1 },
+    });
+    const catMachine = await prisma.category.create({
+      data: { storeId: s.id, name: "Cà phê pha máy", sortOrder: 2 },
+    });
+    const catTea = await prisma.category.create({
+      data: { storeId: s.id, name: "Trà Trái cây & Trà Sữa", sortOrder: 3 },
+    });
+    const catIceBlended = await prisma.category.create({
+      data: { storeId: s.id, name: "Đá xay (Ice Blended)", sortOrder: 4 },
+    });
+    const catCake = await prisma.category.create({
+      data: { storeId: s.id, name: "Bánh ngọt & Đồ ăn nhẹ", sortOrder: 5 },
+    });
 
     // 5. Tạo Menu Items
     await prisma.menuItem.createMany({
       data: [
         // Cà phê truyền thống
-        { categoryId: catCoffee.id, name: 'Cà phê Đen Đá', price: 29000 },
-        { categoryId: catCoffee.id, name: 'Cà phê Sữa Đá', price: 35000 },
-        { categoryId: catCoffee.id, name: 'Bạc Xỉu', price: 39000 },
-        { categoryId: catCoffee.id, name: 'Cà phê Muối', price: 45000 },
-        { categoryId: catCoffee.id, name: 'Cà phê Trứng', price: 55000 },
+        { categoryId: catCoffee.id, name: "Cà phê Đen Đá", price: 29000 },
+        { categoryId: catCoffee.id, name: "Cà phê Sữa Đá", price: 35000 },
+        { categoryId: catCoffee.id, name: "Bạc Xỉu", price: 39000 },
+        { categoryId: catCoffee.id, name: "Cà phê Muối", price: 45000 },
+        { categoryId: catCoffee.id, name: "Cà phê Trứng", price: 55000 },
         // Cà phê pha máy
-        { categoryId: catMachine.id, name: 'Espresso', price: 35000 },
-        { categoryId: catMachine.id, name: 'Americano', price: 40000 },
-        { categoryId: catMachine.id, name: 'Cappuccino', price: 50000 },
-        { categoryId: catMachine.id, name: 'Latte', price: 50000 },
-        { categoryId: catMachine.id, name: 'Caramel Macchiato', price: 55000 },
+        { categoryId: catMachine.id, name: "Espresso", price: 35000 },
+        { categoryId: catMachine.id, name: "Americano", price: 40000 },
+        { categoryId: catMachine.id, name: "Cappuccino", price: 50000 },
+        { categoryId: catMachine.id, name: "Latte", price: 50000 },
+        { categoryId: catMachine.id, name: "Caramel Macchiato", price: 55000 },
         // Trà Trái cây & Trà Sữa
-        { categoryId: catTea.id, name: 'Trà Đào Cam Sả', price: 45000 },
-        { categoryId: catTea.id, name: 'Trà Vải Nhiệt Đới', price: 45000 },
-        { categoryId: catTea.id, name: 'Trà Olong Sen Vàng', price: 50000 },
-        { categoryId: catTea.id, name: 'Trà Sữa Trân Châu Đường Đen', price: 45000 },
-        { categoryId: catTea.id, name: 'Trà Sữa Nướng', price: 49000 },
+        { categoryId: catTea.id, name: "Trà Đào Cam Sả", price: 45000 },
+        { categoryId: catTea.id, name: "Trà Vải Nhiệt Đới", price: 45000 },
+        { categoryId: catTea.id, name: "Trà Olong Sen Vàng", price: 50000 },
+        {
+          categoryId: catTea.id,
+          name: "Trà Sữa Trân Châu Đường Đen",
+          price: 45000,
+        },
+        { categoryId: catTea.id, name: "Trà Sữa Nướng", price: 49000 },
         // Đá xay
-        { categoryId: catIceBlended.id, name: 'Matcha Đá Xay', price: 55000 },
-        { categoryId: catIceBlended.id, name: 'Cookies & Cream', price: 55000 },
-        { categoryId: catIceBlended.id, name: 'Chocolate Đá Xay', price: 55000 },
+        { categoryId: catIceBlended.id, name: "Matcha Đá Xay", price: 55000 },
+        { categoryId: catIceBlended.id, name: "Cookies & Cream", price: 55000 },
+        {
+          categoryId: catIceBlended.id,
+          name: "Chocolate Đá Xay",
+          price: 55000,
+        },
         // Bánh ngọt
-        { categoryId: catCake.id, name: 'Bánh Croissant bơ tỏi', price: 35000 },
-        { categoryId: catCake.id, name: 'Tiramisu truyền thống', price: 45000 },
-        { categoryId: catCake.id, name: 'Bánh Mousse Chanh Dây', price: 40000 },
-        { categoryId: catCake.id, name: 'Bánh Cheesecake Dâu', price: 50000 },
-        { categoryId: catCake.id, name: 'Hạt hướng dương', price: 15000 },
+        { categoryId: catCake.id, name: "Bánh Croissant bơ tỏi", price: 35000 },
+        { categoryId: catCake.id, name: "Tiramisu truyền thống", price: 45000 },
+        { categoryId: catCake.id, name: "Bánh Mousse Chanh Dây", price: 40000 },
+        { categoryId: catCake.id, name: "Bánh Cheesecake Dâu", price: 50000 },
+        { categoryId: catCake.id, name: "Hạt hướng dương", price: 15000 },
       ],
     });
 
     // 6. Tạo Areas & Tables
-    const area1 = await prisma.area.create({ data: { storeId: s.id, name: 'Tầng 1', sortOrder: 1 } });
-    const area2 = await prisma.area.create({ data: { storeId: s.id, name: 'Tầng 2', sortOrder: 2 } });
-    const areaGarden = await prisma.area.create({ data: { storeId: s.id, name: 'Sân vườn', sortOrder: 3 } });
-    const areaBar = await prisma.area.create({ data: { storeId: s.id, name: 'Quầy Bar', sortOrder: 4 } });
+    const area1 = await prisma.area.create({
+      data: { storeId: s.id, name: "Tầng 1", sortOrder: 1 },
+    });
+    const area2 = await prisma.area.create({
+      data: { storeId: s.id, name: "Tầng 2", sortOrder: 2 },
+    });
+    const areaGarden = await prisma.area.create({
+      data: { storeId: s.id, name: "Sân vườn", sortOrder: 3 },
+    });
+    const areaBar = await prisma.area.create({
+      data: { storeId: s.id, name: "Quầy Bar", sortOrder: 4 },
+    });
 
     await prisma.table.createMany({
       data: [
         // Tầng 1
-        { areaId: area1.id, name: 'Bàn 101', sortOrder: 1 },
-        { areaId: area1.id, name: 'Bàn 102', sortOrder: 2 },
-        { areaId: area1.id, name: 'Bàn 103', sortOrder: 3 },
-        { areaId: area1.id, name: 'Bàn 104', sortOrder: 4 },
-        { areaId: area1.id, name: 'Bàn 105', sortOrder: 5 },
-        { areaId: area1.id, name: 'Bàn 106', sortOrder: 6 },
+        { areaId: area1.id, name: "Bàn 101", sortOrder: 1 },
+        { areaId: area1.id, name: "Bàn 102", sortOrder: 2 },
+        { areaId: area1.id, name: "Bàn 103", sortOrder: 3 },
+        { areaId: area1.id, name: "Bàn 104", sortOrder: 4 },
+        { areaId: area1.id, name: "Bàn 105", sortOrder: 5 },
+        { areaId: area1.id, name: "Bàn 106", sortOrder: 6 },
         // Tầng 2
-        { areaId: area2.id, name: 'Bàn 201', sortOrder: 1 },
-        { areaId: area2.id, name: 'Bàn 202', sortOrder: 2 },
-        { areaId: area2.id, name: 'Bàn 203', sortOrder: 3 },
-        { areaId: area2.id, name: 'Bàn 204', sortOrder: 4 },
-        { areaId: area2.id, name: 'Bàn 205', sortOrder: 5 },
-        { areaId: area2.id, name: 'Bàn 206', sortOrder: 6 },
-        { areaId: area2.id, name: 'Bàn 207', sortOrder: 7 },
-        { areaId: area2.id, name: 'Bàn 208', sortOrder: 8 },
+        { areaId: area2.id, name: "Bàn 201", sortOrder: 1 },
+        { areaId: area2.id, name: "Bàn 202", sortOrder: 2 },
+        { areaId: area2.id, name: "Bàn 203", sortOrder: 3 },
+        { areaId: area2.id, name: "Bàn 204", sortOrder: 4 },
+        { areaId: area2.id, name: "Bàn 205", sortOrder: 5 },
+        { areaId: area2.id, name: "Bàn 206", sortOrder: 6 },
+        { areaId: area2.id, name: "Bàn 207", sortOrder: 7 },
+        { areaId: area2.id, name: "Bàn 208", sortOrder: 8 },
         // Sân vườn
-        { areaId: areaGarden.id, name: 'Bàn SV1', sortOrder: 1 },
-        { areaId: areaGarden.id, name: 'Bàn SV2', sortOrder: 2 },
-        { areaId: areaGarden.id, name: 'Bàn SV3', sortOrder: 3 },
-        { areaId: areaGarden.id, name: 'Bàn SV4', sortOrder: 4 },
-        { areaId: areaGarden.id, name: 'Bàn SV5', sortOrder: 5 },
+        { areaId: areaGarden.id, name: "Bàn SV1", sortOrder: 1 },
+        { areaId: areaGarden.id, name: "Bàn SV2", sortOrder: 2 },
+        { areaId: areaGarden.id, name: "Bàn SV3", sortOrder: 3 },
+        { areaId: areaGarden.id, name: "Bàn SV4", sortOrder: 4 },
+        { areaId: areaGarden.id, name: "Bàn SV5", sortOrder: 5 },
         // Quầy Bar
-        { areaId: areaBar.id, name: 'Ghế Bar 1', sortOrder: 1 },
-        { areaId: areaBar.id, name: 'Ghế Bar 2', sortOrder: 2 },
-        { areaId: areaBar.id, name: 'Ghế Bar 3', sortOrder: 3 },
-        { areaId: areaBar.id, name: 'Ghế Bar 4', sortOrder: 4 },
+        { areaId: areaBar.id, name: "Ghế Bar 1", sortOrder: 1 },
+        { areaId: areaBar.id, name: "Ghế Bar 2", sortOrder: 2 },
+        { areaId: areaBar.id, name: "Ghế Bar 3", sortOrder: 3 },
+        { areaId: areaBar.id, name: "Ghế Bar 4", sortOrder: 4 },
       ],
     });
 
-    // 7. Tạo Invoices
-    const sampleSuppliers = [
-      'Nhập hạt cà phê Arabica Cầu Đất',
-      'Nhập hạt cà phê Robusta Đắk Lắk',
-      'Nhập sữa tươi tiệt trùng Vinamilk',
-      'Nhập sữa đặc Ngôi Sao Phương Nam',
-      'Nhập trà ô long hoa nhài',
-      'Nhập đào ngâm đóng hộp',
-      'Nhập vải thiều đóng hộp',
-      'Nhập đường cát trắng',
-      'Nhập ly nhựa và ống hút sinh học',
-      'Nhập bột bánh ngọt và kem béo',
+    // 7. Tạo Expenses (phiếu chi)
+    const expenseTitles = [
+      "Nhập hạt cà phê Arabica Cầu Đất",
+      "Nhập hạt cà phê Robusta Đắk Lắk",
+      "Nhập sữa tươi tiệt trùng Vinamilk",
+      "Nhập sữa đặc Ngôi Sao Phương Nam",
+      "Nhập trà ô long hoa nhài",
+      "Nhập đào ngâm đóng hộp",
+      "Nhập vải thiều đóng hộp",
+      "Nhập đường cát trắng",
+      "Nhập ly nhựa và ống hút sinh học",
+      "Nhập bột bánh ngọt và kem béo",
+      "Thanh toán tiền điện tháng này",
+      "Thanh toán tiền nước",
+      "Thanh toán tiền internet",
+      "Lương nhân viên ca sáng",
+      "Lương nhân viên ca tối",
+      "Mua nước ngọt bổ sung",
+      "Nhập đá viên",
+      "Bảo trì bếp gas",
+      "Mua chén đũa mới",
+      "Chi phí quảng cáo Facebook",
+      "Thiết kế banner khai trương",
+      "Thuê ship giao hàng",
+      "Mua khăn giấy",
+      "Mua nước rửa chén",
+      "Mua hộp mang về",
+      "In tem logo cửa hàng",
+      "Mua ly nhựa và ống hút",
+      "Thuê mặt bằng",
+      "Phí duy trì phần mềm POS",
     ];
 
-    const invoiceEntries = [];
-    const baseDate = new Date();
+    const expenseEntries = [];
+    const now = new Date();
 
+    const utcMidnightDaysAgo = (days: number) =>
+      new Date(
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate() - days,
+        ),
+      );
+
+    // 30 existing invoices
     for (let dOffset = 0; dOffset < 10; dOffset++) {
-      const targetDate = new Date();
-      targetDate.setDate(baseDate.getDate() - dOffset);
-      targetDate.setHours(0, 0, 0, 0);
+      const targetDate = utcMidnightDaysAgo(dOffset);
 
       for (let i = 0; i < 3; i++) {
-        const randomSupplier = sampleSuppliers[(dOffset * 3 + i) % sampleSuppliers.length];
-        const randomAmount = (Math.floor(Math.random() * 15) + 5) * 100000;
-        
+        const title = expenseTitles[(dOffset * 3 + i) % expenseTitles.length];
+        const amount = (Math.floor(Math.random() * 15) + 5) * 100000;
+
         const createdAt = new Date(targetDate.getTime());
         createdAt.setHours(8 + i * 3, 0, 0, 0);
 
-        invoiceEntries.push({
+        expenseEntries.push({
           storeId: s.id,
-          description: randomSupplier,
-          amount: randomAmount,
+          title,
+          amount,
           rawDate: targetDate,
           createdAt,
         });
       }
     }
 
-    await prisma.invoice.createMany({ data: invoiceEntries });
-    console.log(`✔ Đã nạp danh mục, thực đơn phong phú, 4 khu vực bàn và ${invoiceEntries.length} phiếu nhập mẫu.`);
+    // 80 additional expenses across more days
+    const moreTitles = [
+      "Mua cà phê hạt rang xay",
+      "Nhập siro bơ sữa",
+      "Mua topping trân châu",
+      "Nhập thạch dừa",
+      "Mua pudding đậu đỏ",
+      "Nhập sữa tươi không đường",
+      "Mua kem tươi đánh bông",
+      "Nhập bột cacao nguyên chất",
+      "Mua matcha bột",
+      "Nhập bánh quy ốc quế",
+      "Mua mứt hoa quả các loại",
+      "Nhập nước cốt dừa",
+      "Mua siro đường mía",
+      "Nhập mật ong rừng",
+      "Mua trà túi lọc các loại",
+      "Nhập cà phê hòa tan",
+      "Mua bột sữa đậu nành",
+      "Nhập tinh dầu vani",
+      "Mua chocolate đen",
+      "Nhập hạnh nhân lát",
+      "Mua bánh cookie vụn",
+      "Nhập dừa sấy khô",
+      "Mua siro dâu tây",
+      "Nhập bột rau câu",
+      "Mua đậu đỏ hầm sẵn",
+      "Nhập trân châu trắng",
+      "Mua trái cây tươi (dâu, việt quất)",
+      "Nhập bạc hà tươi",
+      "Mua gừng tươi pha chế",
+      "Nhập sả tươi",
+      "Mua chanh dây đông lạnh",
+      "Nhập matcha đá xay",
+      "Mua siro dừa",
+      "Nhập nước cốt chanh",
+      "Mua bột pudding",
+      "Nhập bánh flan",
+      "Mua thạch cà phê",
+      "Nhập hạt é",
+      "Mua hạt chia",
+      "Nhập nha đam",
+      "Mua bí đỏ cho sinh tố",
+      "Nhập khoai môn",
+      "Mua khoai lang tím",
+      "Nhập bơ sáp",
+      "Mua sầu riêng đông lạnh",
+      "Nhập dừa tươi",
+      "Mua xoài chín",
+      "Nhập cam tươi vắt",
+      "Mua bưởi da xanh",
+      "Nhập dâu tây đông lạnh",
+      "Mua việt quất đông lạnh",
+      "Nhập cherry nhập khẩu",
+      "Mua kiwi",
+      "Nhập táo xanh",
+      "Mua siro lựu",
+      "Nhập nước ép lựu đóng chai",
+      "Mua trà thảo mộc",
+      "Nhập bánh trung thu",
+      "Mua bánh mochi",
+      "Nhập bánh macaron",
+      "Mua bánh donut",
+      "Nhập bánh pancake",
+      "Mua bánh waffle",
+      "Nhập bánh crepe",
+      "Mua bánh bông lan cuộn",
+      "Nhập bánh su kem",
+      "Mua bánh tart trứng",
+      "Nhập bánh mì que bơ tỏi",
+      "Mua bánh pizza mini",
+      "Nhập bánh hamburger",
+      "Mua xúc xích Đức",
+      "Nhập phô mai con bò cười",
+      "Mua sốt mayonnaise",
+      "Nhập tương ớt",
+      "Mua tương cà",
+      "Nhập dầu oliu pha chế",
+      "Mua giấy bạc gói hàng",
+      "Nhập túi giấy kraft",
+      "Mua decal dán cửa hàng",
+    ];
+
+    // Spread expenses across last 30 days
+    for (let i = 0; i < 80; i++) {
+      const dayOffset = Math.floor(i / 3) % 30;
+      const targetDate = utcMidnightDaysAgo(dayOffset);
+
+      const amount = (Math.floor(Math.random() * 50) + 1) * 10000;
+      const createdAt = new Date(targetDate.getTime());
+      createdAt.setHours(7 + (i % 12), 0, 0, 0);
+
+      expenseEntries.push({
+        storeId: s.id,
+        title: moreTitles[i % moreTitles.length],
+        amount,
+        rawDate: targetDate,
+        createdAt,
+      });
+    }
+
+    await prisma.expense.createMany({ data: expenseEntries });
+
+    // 8. Tạo Orders (đơn hàng mẫu)
+    const menuItems = await prisma.menuItem.findMany({ where: { category: { storeId: s.id } } });
+    const orderStatuses = await prisma.status.findMany({
+      where: { storeId: s.id },
+      orderBy: { sortOrder: "asc" },
+    });
+    const orderTables = await prisma.table.findMany({
+      where: { area: { storeId: s.id } },
+      include: { area: true },
+    });
+
+    const orderEntries: {
+      storeId: number;
+      tableSnapshot: string | null;
+      statusId: number;
+      statusSnapshot: string;
+      createdAt: Date;
+    }[] = [];
+    const orderItemEntries: {
+      orderIdx: number;
+      statusId: number;
+      statusSnapshot: string | null;
+      nameSnapshot: string;
+      priceSnapshot: number;
+      qty: number;
+    }[] = [];
+
+    let totalOrders = 0;
+    for (const st of orderStatuses) {
+      const count = 5 + Math.floor(Math.random() * 11);
+      totalOrders += count;
+
+      for (let i = 0; i < count; i++) {
+        const orderIdx = orderEntries.length;
+
+        const hours = 7 + Math.floor(Math.random() * 11);
+        const minutes = Math.floor(Math.random() * 60);
+        const createdAt = new Date();
+        createdAt.setDate(createdAt.getDate() - Math.floor(orderIdx / 10) - 1);
+        createdAt.setHours(hours, minutes, 0, 0);
+
+        orderEntries.push({
+          storeId: s.id,
+          tableSnapshot: null,
+          statusId: st.id,
+          statusSnapshot: st.name,
+          createdAt,
+        });
+
+        const itemCount = 1 + Math.floor(Math.random() * 4);
+        const usedIndices = new Set<number>();
+        for (let j = 0; j < itemCount; j++) {
+          let idx: number;
+          do {
+            idx = Math.floor(Math.random() * menuItems.length);
+          } while (usedIndices.has(idx));
+          usedIndices.add(idx);
+
+          const mi = menuItems[idx];
+          const qty = 1 + Math.floor(Math.random() * 3);
+
+          orderItemEntries.push({
+            orderIdx,
+            statusId: st.id,
+            statusSnapshot: st.name,
+            nameSnapshot: mi.name,
+            priceSnapshot: Number(mi.price),
+            qty,
+          });
+        }
+      }
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const createdOrders = await Promise.all(
+        orderEntries.map((o) =>
+          tx.order.create({ data: o }),
+        ),
+      );
+
+      await tx.orderItem.createMany({
+        data: orderItemEntries.map((item) => ({
+          orderId: createdOrders[item.orderIdx].id,
+          statusId: item.statusId,
+          statusSnapshot: item.statusSnapshot,
+          nameSnapshot: item.nameSnapshot,
+          priceSnapshot: item.priceSnapshot,
+          qty: item.qty,
+        })),
+      });
+    });
+
+    console.log(
+      `✔ Đã nạp danh mục, thực đơn phong phú, 4 khu vực bàn, ${expenseEntries.length} phiếu chi và ${totalOrders} đơn hàng mẫu.`,
+    );
   }
 
-  console.log('\n✅ Seed dữ liệu mẫu hoàn tất! Bạn có thể dùng SĐT: 0901234567 / Pass: password123 để đăng nhập.');
+  console.log(
+    "\n✅ Seed dữ liệu mẫu hoàn tất! Bạn có thể dùng SĐT: 0901234567 / Pass: password123 để đăng nhập.",
+  );
 }
 
 main()

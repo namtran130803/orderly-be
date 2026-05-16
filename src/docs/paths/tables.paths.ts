@@ -12,6 +12,32 @@ const tableIdParam = {
 };
 
 export const tablePaths: PathsObject = {
+  '/api/stores/{storeId}/tables': {
+    get: {
+      tags: ['Tables'],
+      summary: 'Danh sách bàn của cửa hàng',
+      parameters: [storeIdParam],
+      responses: {
+        200: {
+          description: 'Danh sách bàn',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  success: { type: 'boolean', example: true },
+                  data: { type: 'array', items: { $ref: '#/components/schemas/Table' } },
+                  message: { type: 'string', example: 'Danh sách bàn' },
+                },
+              },
+            },
+          },
+        },
+        ...errorResponses(401, 403),
+      },
+    },
+  },
+
   '/api/stores/{storeId}/tables/{tableId}': {
     put: {
       tags: ['Tables'],

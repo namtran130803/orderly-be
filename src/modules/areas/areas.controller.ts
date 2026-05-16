@@ -6,7 +6,7 @@ import { CreateAreaDto, UpdateAreaDto, ReorderAreasDto } from '@/modules/areas/a
 export async function list(req: Request, res: Response, next: NextFunction) {
   try {
     const areas = await service.listAreas(req.store!.id);
-    sendSuccess(res, areas, 'Danh sách khu vực và bàn');
+    sendSuccess(res, areas, 'Danh sách khu vực');
   } catch (err) {
     next(err);
   }

@@ -4,14 +4,16 @@ import { CreateStatusDto, UpdateStatusDto, ReorderStatusesDto } from '@/modules/
 import { StatusType } from '@prisma/client';
 
 async function assertNoActiveOrders(storeId: number) {
+  const endStatus = await prisma.status.findFirst({
+    where: { storeId, type: StatusType.end },
+  });
   const activeOrder = await prisma.order.findFirst({
     where: {
       storeId,
       items: {
         some: {
-          status: {
-            type: { in: ['start', 'mid'] },
-          },
+          statusId: { not: null },
+          NOT: { statusId: endStatus?.id || 0 },
         },
       },
     },

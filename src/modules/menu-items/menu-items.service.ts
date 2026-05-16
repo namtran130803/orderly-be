@@ -31,7 +31,6 @@ export async function updateMenuItem(
   const item = await prisma.menuItem.findUnique({ where: { id: itemId } });
   if (!item) throw ApiError.notFound('MenuItem');
 
-  // Kiểm tra item thuộc store qua category
   const cat = await prisma.category.findUnique({ where: { id: item.categoryId } });
   if (cat?.storeId !== storeId) throw ApiError.forbidden();
 

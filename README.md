@@ -1,4 +1,4 @@
-# ☕ Orderly POS — Backend REST API (100% Dockerized)
+# ☕ Orderly POS — Backend REST API
 
 ![Node.js](https://img.shields.io/badge/Node.js-24%20LTS-43853D?style=for-the-badge&logo=node.js&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
@@ -6,101 +6,88 @@
 ![Prisma](https://img.shields.io/badge/Prisma-7.x-2D3748?style=for-the-badge&logo=prisma&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Exclusive-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 
-Hệ thống Backend REST API Quản lý bán hàng (POS) chuỗi quán cà phê **Orderly**. 
+Hệ thống Backend REST API Quản lý bán hàng (POS) chuỗi quán cà phê **Orderly**.
 
-> **🎯 TRỌNG TÂM VẬN HÀNH (DOCKER-EXCLUSIVE):**
-> Mã nguồn được thiết kế tối ưu hóa trọn vẹn để **chạy 100% bên trong container Docker**. Bạn **KHÔNG CẦN** cài đặt Node.js hay PostgreSQL cục bộ trên máy tính cá nhân. Mọi thao tác từ phát triển (hot-reload), nạp dữ liệu DB, đến triển khai sản phẩm đều thực thi nhất quán qua Docker Compose.
+## 📋 Yêu Cầu
 
----
-
-## 📋 Yêu Cầu Duy Nhất (Prerequisite)
-- Cài đặt và bật **Docker Desktop** (hoặc Docker Engine kèm Plugin Compose v2).
-- Đảm bảo Docker daemon đang chạy (biểu tượng cá voi màu xanh).
+- **Docker Desktop** (hoặc Docker Engine + Compose v2)
+- **Node.js 24 LTS** (chỉ cần nếu chạy seed local)
 
 ---
 
-## 🚀 Hướng Dẫn Cài Đặt Ban Đầu (Setup Chung)
+## 🚀 Lần Đầu Chạy (Dev)
 
-### Bước 1: Clone mã nguồn
 ```bash
-git clone <repository-url>
-cd orderly-be
-```
-
-### Bước 2: Thiết lập Biến môi trường
-Copy file `.env.example` để tạo file `.env` chính thức:
-```bash
-cp .env.example .env
-```
-*(File `.env` mặc định đã được cấu hình các chuỗi kết nối tương thích hoàn hảo giữa các dịch vụ ngầm trong mạng lưới Docker nội bộ).*
-
----
-
-## 💻 Môi Trường Phát Triển (Development Mode)
-Khi code tính năng mới, bạn cần ứng dụng tự động cập nhật (Hot-reload) mỗi khi bạn lưu file trên máy tính.
-
-### 1. Khởi động riêng Database ngầm
-```bash
+# 1. Khởi động database
 docker compose up -d db
-```
 
-### 2. Khởi tạo cấu trúc bảng & Nạp dữ liệu mẫu (Chỉ làm lần đầu)
-Thực thi lệnh nạp Prisma migrate và dữ liệu mẫu (`seed`) trực tiếp bên trong một container tạm thời:
-```bash
-# Đẩy cấu trúc Database và sinh Prisma Client
-docker compose run --rm api npx prisma migrate dev --name init
+# 2. Đồng bộ Prisma schema với database
+npx prisma db push
 
-# Nạp dữ liệu ban đầu (Menu, Cửa hàng, Khu vực, Trạng thái...)
-docker compose run --rm api npm run seed
-```
+# 3. Nạp dữ liệu mẫu
+npx tsx prisma/seed.ts
 
-### 3. Khởi chạy API Server với tính năng Tự động Đồng bộ (Hot-Reload hoàn hảo)
-Sử dụng cấu hình dịch vụ chuyên dụng `api-dev` kết hợp tính năng **Watch** của Docker Compose. Hệ thống sẽ tự động lắng nghe, đồng bộ từng thay đổi file trên Windows host vào thẳng Linux kernel và khởi động lại dịch vụ ngay lập tức:
-```bash
+# 4. Khởi động API server với hot-reload
 docker compose watch api-dev
 ```
-> **💡 Trải nghiệm mượt mà**: Giờ đây, bạn có thể tự do mở VSCode trên Windows, chỉnh sửa file logic (ví dụ `auth.controller.ts`), ngay khi bạn ấn Save (`Ctrl + S`), Docker sẽ tự nạp mã mới trong chớp mắt mà không trễ nhịp!
 
----
+> **Lưu ý:** Các bước 2-3 chạy trực tiếp trên máy host (cần Node.js). Đảm bảo file `.env` có `DATABASE_URL=postgresql://user:pass@localhost:5432/orderly_db`.
 
-## 🌍 Môi Trường Thực Tế (Production Mode)
-Khi triển khai lên máy chủ thật hoặc kiểm thử trọn gói hiệu năng sản phẩm với mã nguồn JavaScript đã tối ưu trong thư mục `dist/`:
+## 🚀 Lần Đầu Chạy (Production)
 
-### 1. Khởi chạy toàn bộ hệ thống ngầm (Detached)
-Lệnh này sẽ tự động build image đa giai đoạn (Multi-stage) tinh gọn và chạy song song cả DB lẫn API Server:
+```bash
+# Build image và khởi động tất cả dịch vụ
+docker compose up -d --build
+
+# Đồng bộ Prisma schema
+docker compose run --rm api npx prisma db push
+
+# Nạp dữ liệu mẫu
+docker compose run --rm api npx tsx prisma/seed.ts
+```
+
+## 🔄 Các Lần Tiếp Theo
+
+### Khi code thay đổi (Dev)
+- Docker Watch tự động đồng bộ file `src/` và restart. Không cần làm gì thêm.
+
+### Khi code thay đổi (Production)
 ```bash
 docker compose up -d --build
 ```
 
-### 2. Xem Log Hoạt Động Thời Gian Thực
+### Khi sửa `prisma/schema.prisma`
 ```bash
-docker compose logs -f api
+# Đồng bộ schema (dev – chạy host)
+npx prisma db push
+
+# Đồng bộ schema (prod – chạy container)
+docker compose run --rm api npx prisma db push
+
+# Muốn seed lại dữ liệu
+npx tsx prisma/seed.ts          # dev
+docker compose run --rm api npx tsx prisma/seed.ts  # prod
 ```
 
-### 3. Dừng và Tắt Hệ Thống
+---
+
+## 📖 Tài liệu API
+
+Khi server đang chạy:
+
+- **Scalar UI**: `http://localhost:3000/docs`
+- **OpenAPI JSON**: `http://localhost:3000/api/openapi.json`
+
+## 🛠 Các Lệnh Khác
+
 ```bash
+# Xem log
+docker compose logs -f api-dev   # dev
+docker compose logs -f api       # prod
+
+# Dừng hệ thống
 docker compose down
+
+# Xoá toàn bộ dữ liệu DB (volume)
+docker compose down -v
 ```
-
----
-
-## 📖 Tra Cứu Tài Liệu API (Scalar UI & OpenAPI)
-Khi API Server đang hoạt động (ở cả chế độ Dev hoặc Prod), bạn có thể truy cập trình duyệt tại:
-- **Giao diện Trực quan Scalar UI**: `http://localhost:3000/docs` *(Giao diện tối ưu, hỗ trợ thử nghiệm trực tiếp).*
-- **Đặc tả OpenAPI 3.1 JSON**: `http://localhost:3000/api/openapi.json` *(Dùng để import vào Postman hoặc ứng dụng Frontend).*
-
----
-
-## 🛠️ Các Lệnh Thao Tác DB Nâng Cao Qua Docker
-Nếu sau này bạn chỉnh sửa sơ đồ `prisma/schema.prisma`, hãy áp dụng thay đổi bằng các lệnh sau:
-
-```bash
-# Tạo file migration mới khi đổi cấu trúc bảng
-docker compose run --rm api npx prisma migrate dev --name <tên_chỉnh_sửa>
-
-# Cập nhật lại Prisma Client types
-docker compose run --rm api npx prisma generate
-```
-
----
-**Orderly POS Backend** — Chuẩn mực Vận hành Tự động hóa qua Container.

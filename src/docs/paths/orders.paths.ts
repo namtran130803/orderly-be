@@ -20,6 +20,7 @@ export const orderPaths: PathsObject = {
         storeIdParam,
         { name: 'statusId', in: 'query', schema: { type: 'integer' }, description: 'Lọc theo trạng thái' },
         { name: 'date', in: 'query', schema: { type: 'string', format: 'date' }, description: 'Lọc theo ngày (YYYY-MM-DD)' },
+        { name: 'sortOrder', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'], default: 'desc' }, description: 'Sắp xếp theo thời gian: asc (cũ → mới), desc (mới → cũ)' },
         { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
         { name: 'limit', in: 'query', schema: { type: 'integer', default: 20, maximum: 100 } },
       ],
@@ -41,7 +42,7 @@ export const orderPaths: PathsObject = {
               withTable: {
                 summary: 'Đơn có bàn',
                 value: {
-                  tableId: 3,
+                  tableName: 3,
                   items: [
                     { menuItemId: 1, qty: 2 },
                   ],
@@ -50,7 +51,7 @@ export const orderPaths: PathsObject = {
               takeaway: {
                 summary: 'Đơn mang về',
                 value: {
-                  tableId: null,
+                  tableName: null,
                   items: [{ menuItemId: 1, qty: 1 }],
                 },
               },
@@ -88,7 +89,7 @@ export const orderPaths: PathsObject = {
               default: {
                 summary: 'Ví dụ cập nhật',
                 value: {
-                  tableId: null,
+                  tableName: null,
                   items: [{ menuItemId: 1, qty: 3 }],
                 },
               },

@@ -2,6 +2,15 @@ import { Request, Response, NextFunction } from 'express';
 import * as service from '@/modules/tables/tables.service';
 import { sendSuccess, ApiError } from '@/lib/response';
 
+export async function list(req: Request, res: Response, next: NextFunction) {
+  try {
+    const tables = await service.listTables(req.store!.id);
+    sendSuccess(res, tables, 'Danh sách bàn');
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function updateTable(req: Request, res: Response, next: NextFunction) {
   try {
     const { name } = req.body;

@@ -13,7 +13,7 @@ export const orderSchemas: Record<string, any> = {
     type: 'object',
     required: ['items'],
     properties: {
-      tableId: { type: 'integer', nullable: true, example: 3 },
+      tableName: { type: 'string', nullable: true, example: 'Bàn 101' },
       items: {
         type: 'array',
         items: { $ref: '#/components/schemas/OrderItemInput' },
@@ -24,7 +24,7 @@ export const orderSchemas: Record<string, any> = {
     type: 'object',
     required: ['items'],
     properties: {
-      tableId: { type: 'integer', nullable: true, example: 3 },
+      tableName: { type: 'string', nullable: true, example: 'Bàn 101' },
       items: {
         type: 'array',
         items: { $ref: '#/components/schemas/OrderItemInput' },

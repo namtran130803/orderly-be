@@ -19,18 +19,12 @@ function generateTablePrefix(areaName: string): string {
       prefix += char.toUpperCase();
     }
   }
-  if (prefix === 'T1') return 'T';
   return prefix;
 }
 
 export async function listAreas(storeId: number) {
   return prisma.area.findMany({
     where: { storeId },
-    include: {
-      tables: {
-        orderBy: { sortOrder: 'asc' },
-      },
-    },
     orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
   });
 }
@@ -64,10 +58,7 @@ export async function createArea(storeId: number, dto: CreateAreaDto) {
       data: tablesData,
     });
 
-    return tx.area.findUnique({
-      where: { id: area.id },
-      include: { tables: { orderBy: { sortOrder: 'asc' } } },
-    });
+    return tx.area.findUnique({ where: { id: area.id } });
   });
 }
 
@@ -118,10 +109,7 @@ export async function updateArea(storeId: number, areaId: number, dto: UpdateAre
       }
     }
 
-    return tx.area.findUnique({
-      where: { id: areaId },
-      include: { tables: { orderBy: { sortOrder: 'asc' } } },
-    });
+    return tx.area.findUnique({ where: { id: areaId } });
   });
 }
 
