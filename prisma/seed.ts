@@ -1,52 +1,91 @@
-import { PrismaClient, StatusType } from "@prisma/client";
+import { PrismaClient, StatusType, StoreUserRoleType } from "@prisma/client";
 import bcrypt from "bcrypt";
+import { bootstrapRbac } from "../src/config/rbac/rbac-bootstrap";
+import { ROLE_DEFS } from "../src/config/rbac/rbac-defs";
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log("Bắt đầu seed dữ liệu mẫu...");
 
-  // Xóa dữ liệu cũ nếu cần (tùy chọn, ở đây ta dùng upsert để an toàn khi chạy nhiều lần)
+  // 1. Dọn dẹp toàn bộ dữ liệu cũ (Full Wipe)
+  console.log("🧹 Đang dọn dẹp toàn bộ dữ liệu cũ...");
+  const tablenames = await prisma.$queryRaw<
+    Array<{ tablename: string }>
+  >`SELECT tablename FROM pg_tables WHERE schemaname='public'`;
+
+  const tables = tablenames
+    .map(({ tablename }) => tablename)
+    .filter((name) => name !== "_prisma_migrations")
+    .map((name) => `"${name}"`)
+    .join(", ");
+
+  try {
+    await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${tables} RESTART IDENTITY CASCADE;`);
+    console.log("✨ Đã dọn dẹp sạch sẽ cơ sở dữ liệu.");
+  } catch (error) {
+    console.log("⚠️ Lỗi khi TRUNCATE, chuyển sang deleteMany...");
+    // Fallback if TRUNCATE fails
+    await prisma.userRole.deleteMany();
+    await prisma.rolePermission.deleteMany();
+    await prisma.storeUserRole.deleteMany();
+    await prisma.orderItem.deleteMany();
+    await prisma.order.deleteMany();
+    await prisma.expense.deleteMany();
+    await prisma.table.deleteMany();
+    await prisma.area.deleteMany();
+    await prisma.menuItem.deleteMany();
+    await prisma.category.deleteMany();
+    await prisma.status.deleteMany();
+    await prisma.storeUser.deleteMany();
+    await prisma.store.deleteMany();
+    await prisma.user.deleteMany();
+    await prisma.role.deleteMany();
+    await prisma.permission.deleteMany();
+  }
+
+  // 2. Đồng bộ RBAC (modules, permissions, roles mặc định)
+  await bootstrapRbac();
+  console.log("🔐 Đã đồng bộ permissions & roles");
+
   const passwordHash = await bcrypt.hash("password123", 12);
 
-  // 1. Tạo hoặc Tìm User
-  const user = await prisma.user.upsert({
-    where: { phone: "0901234567" },
-    update: {},
-    create: {
+  // 3. Tạo User mặc định (Admin)
+  const user = await prisma.user.create({
+    data: {
       name: "Trần Trọng Nam",
       phone: "0901234567",
       passwordHash,
     },
   });
-  console.log(`👤 User: ${user.name}`);
+  console.log(`👤 User Admin: ${user.name}`);
 
-  // 2. Tạo hoặc Tìm Store
-  let store = await prisma.store.findFirst({
-    where: { userId: user.id },
-  });
-  if (!store) {
-    store = await prisma.store.create({
-      data: {
-        userId: user.id,
-        name: "Orderly Coffee & Tea",
-        address: "123 Đường Nguyễn Văn Linh, Quận 7, TP.HCM",
-      },
+  // Gán role admin cho user mặc định
+  const adminRole = await prisma.role.findUnique({ where: { code: ROLE_DEFS.ADMIN.code } });
+  if (adminRole) {
+    await prisma.userRole.create({
+      data: { userId: user.id, roleId: adminRole.id },
     });
+    console.log(`👑 Đã gán role admin cho user ${user.name}`);
   }
+
+  // 4. Tạo Store mặc định
+  const store = await prisma.store.create({
+    data: {
+      userId: user.id,
+      name: "Orderly Coffee & Tea",
+      address: "123 Đường Nguyễn Văn Linh, Quận 7, TP.HCM",
+    },
+  });
   console.log(`🏪 Cửa hàng chính: ${store.name}`);
 
-  // Xóa toàn bộ dữ liệu cũ của tất cả các cửa hàng để nạp mới hoàn toàn tránh trùng lặp
-  console.log(
-    "🧹 Đang dọn dẹp dữ liệu cũ (Categories, Areas, Tables, MenuItems, Invoices, Orders, Statuses)...",
-  );
-  await prisma.order.deleteMany();
-  await prisma.expense.deleteMany();
-  await prisma.table.deleteMany();
-  await prisma.area.deleteMany();
-  await prisma.menuItem.deleteMany();
-  await prisma.category.deleteMany();
-  await prisma.status.deleteMany();
+  await prisma.storeUser.create({
+    data: {
+      userId: user.id,
+      storeId: store.id,
+      role: StoreUserRoleType.owner,
+    },
+  });
 
   // Lặp qua tất cả các cửa hàng hiện có trong hệ thống để nạp danh mục, khu vực, món ăn, và phiếu nhập đồng nhất
   const allStores = await prisma.store.findMany();

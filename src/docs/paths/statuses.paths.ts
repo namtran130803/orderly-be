@@ -1,24 +1,18 @@
 import type { PathsObject } from 'openapi3-ts/oas31';
 import { successResponse, errorResponses } from '@/docs/schemas/common';
 
-const storeIdParam = {
-  name: 'storeId', in: 'path' as const, required: true,
-  schema: { type: 'integer' as const },
-};
-const statusIdParam = {
-  name: 'statusId', in: 'path' as const, required: true,
-  schema: { type: 'integer' as const },
-};
+const storeIdParam = { name: 'storeId', in: 'path' as const, required: true, schema: { type: 'integer' as const } };
+const statusIdParam = { name: 'statusId', in: 'path' as const, required: true, schema: { type: 'integer' as const } };
 
 export const statusPaths: PathsObject = {
   '/api/stores/{storeId}/statuses': {
     get: {
-      tags: ['Statuses'],
-      summary: 'Danh sách quy trình xử lý đơn',
+      tags: ['Quy trình'],
+      summary: 'Danh sách',
       parameters: [storeIdParam],
       responses: {
         200: {
-          description: 'Danh sách trạng thái',
+          description: 'Danh sách',
           content: {
             'application/json': {
               schema: {
@@ -26,7 +20,7 @@ export const statusPaths: PathsObject = {
                 properties: {
                   success: { type: 'boolean', example: true },
                   data: { type: 'array', items: { $ref: '#/components/schemas/Status' } },
-                  message: { type: 'string', example: 'Quy trình xử lý đơn hàng' },
+                  message: { type: 'string', example: 'Danh sách' },
                 },
               },
             },
@@ -36,60 +30,46 @@ export const statusPaths: PathsObject = {
       },
     },
     post: {
-      tags: ['Statuses'],
-      summary: 'Thêm bước xử lý trung gian',
+      tags: ['Quy trình'],
+      summary: 'Tạo',
       parameters: [storeIdParam],
       requestBody: {
         required: true,
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/CreateStatusRequest' },
-            examples: {
-              default: {
-                summary: 'Ví dụ thêm bước',
-                value: { name: 'Đang chuẩn bị' },
-              },
-            },
+            examples: { default: { value: { name: 'Đang chuẩn bị' } } },
           },
         },
       },
       responses: {
-        201: successResponse('Status', 'Thêm bước thành công'),
+        201: successResponse('Status', 'Tạo thành công'),
         ...errorResponses(400, 401, 403),
       },
     },
   },
-
   '/api/stores/{storeId}/statuses/reorder': {
     patch: {
-      tags: ['Statuses'],
-      summary: 'Sắp xếp lại các bước xử lý trung gian',
+      tags: ['Quy trình'],
+      summary: 'Sắp xếp',
       parameters: [storeIdParam],
       requestBody: {
         required: true,
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/ReorderStatusesRequest' },
-            examples: {
-              default: {
-                summary: 'Ví dụ sắp xếp',
-                value: { ids: [3, 4, 5] },
-              },
-            },
+            examples: { default: { value: { ids: [3, 4, 5] } } },
           },
         },
       },
       responses: {
         200: {
-          description: 'Danh sách sau khi sắp xếp',
+          description: 'Đã sắp xếp',
           content: {
             'application/json': {
               schema: {
                 type: 'object',
-                properties: {
-                  success: { type: 'boolean', example: true },
-                  data: { type: 'array', items: { $ref: '#/components/schemas/Status' } },
-                },
+                properties: { success: { type: 'boolean', example: true }, data: { type: 'array', items: { $ref: '#/components/schemas/Status' } } },
               },
             },
           },
@@ -98,23 +78,17 @@ export const statusPaths: PathsObject = {
       },
     },
   },
-
   '/api/stores/{storeId}/statuses/{statusId}': {
     put: {
-      tags: ['Statuses'],
-      summary: 'Sửa tên bước xử lý',
+      tags: ['Quy trình'],
+      summary: 'Cập nhật',
       parameters: [storeIdParam, statusIdParam],
       requestBody: {
         required: true,
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/CreateStatusRequest' },
-            examples: {
-              default: {
-                summary: 'Ví dụ đổi tên',
-                value: { name: 'Đang chuẩn bị (Sửa)' },
-              },
-            },
+            examples: { default: { value: { name: 'Đang chuẩn bị (Sửa)' } } },
           },
         },
       },
@@ -124,8 +98,8 @@ export const statusPaths: PathsObject = {
       },
     },
     delete: {
-      tags: ['Statuses'],
-      summary: 'Xóa bước xử lý trung gian',
+      tags: ['Quy trình'],
+      summary: 'Xóa',
       parameters: [storeIdParam, statusIdParam],
       responses: {
         200: successResponse('Status', 'Xóa thành công'),

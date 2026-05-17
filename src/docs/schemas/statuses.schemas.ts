@@ -12,11 +12,7 @@ export const statusSchemas: Record<string, SchemaObject> = {
     type: 'object',
     required: ['ids'],
     properties: {
-      ids: {
-        type: 'array',
-        items: { type: 'string', format: 'uuid' },
-        example: ['550e8400-e29b-41d4-a716-446655440002', '550e8400-e29b-41d4-a716-446655440003'],
-      },
+      ids: { type: 'array', items: { type: 'integer' }, example: [2, 3, 4] },
     },
   },
 };

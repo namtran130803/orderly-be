@@ -5,16 +5,16 @@ export const menuItemSchemas: Record<string, SchemaObject> = {
     type: 'object',
     required: ['name', 'price', 'categoryId'],
     properties: {
-      name:       { type: 'string', example: 'Cà phê Sữa đá' },
-      price:      { type: 'integer', example: 29000 },
+      name: { type: 'string', example: 'Cà phê Sữa đá' },
+      price: { type: 'integer', example: 29000 },
       categoryId: { type: 'integer', example: 1 },
     },
   },
   UpdateMenuItemRequest: {
     type: 'object',
     properties: {
-      name:       { type: 'string', example: 'Cà phê Sữa đá (Size L)' },
-      price:      { type: 'integer', example: 35000 },
+      name: { type: 'string', example: 'Cà phê Sữa đá (Size L)' },
+      price: { type: 'integer', example: 35000 },
       categoryId: { type: 'integer', example: 1 },
     },
   },

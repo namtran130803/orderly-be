@@ -1,9 +1,17 @@
-import { User, Store } from '@prisma/client';
+import { Store } from '@prisma/client';
+
+export interface AuthUser {
+  id: number;
+  name: string;
+  phone: string;
+  permissions: string[];
+  roles: string[];
+}
 
 declare global {
   namespace Express {
     interface Request {
-      user?: Pick<User, 'id' | 'name' | 'phone'>;
+      user?: AuthUser;
       store?: Store;
     }
   }

@@ -5,14 +5,14 @@ export const storeSchemas: Record<string, SchemaObject> = {
     type: 'object',
     required: ['name'],
     properties: {
-      name:    { type: 'string', example: 'Chi nhánh Quận 1' },
+      name: { type: 'string', example: 'Chi nhánh Quận 1' },
       address: { type: 'string', example: '123 Lê Lợi' },
     },
   },
   UpdateStoreRequest: {
     type: 'object',
     properties: {
-      name:    { type: 'string', example: 'Chi nhánh Quận 1 (Sửa)' },
+      name: { type: 'string', example: 'Chi nhánh Quận 1 (Sửa)' },
       address: { type: 'string', example: '456 Nguyễn Huệ' },
     },
   },

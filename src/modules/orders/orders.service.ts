@@ -1,5 +1,5 @@
 import { prisma } from "@/config/prisma";
-import { StatusType } from "@prisma/client";
+import { StatusType, Prisma } from "@prisma/client";
 import { ApiError } from "@/lib/response";
 import {
   OrderQueryDto,
@@ -8,6 +8,35 @@ import {
   ChangeOrderStatusDto,
 } from "@/modules/orders/orders.schema";
 
+interface OrderItemWithId {
+  id: number;
+  nameSnapshot: string;
+  priceSnapshot: number;
+  qty: number;
+  statusId: number | null;
+  statusSnapshot: string | null;
+  orderId: number;
+}
+
+interface OrderWithItems {
+  id: number;
+  storeId: number;
+  tableId: number | null;
+  tableSnapshot: string | null;
+  statusId: number | null;
+  statusSnapshot: string | null;
+  createdAt: Date;
+  items: OrderItemWithId[];
+}
+
+interface EnrichedOrderItem extends OrderItemWithId {
+  menuItemId: number | null;
+}
+
+interface EnrichedOrder extends Omit<OrderWithItems, 'items'> {
+  items: EnrichedOrderItem[];
+}
+
 async function assertOrderOwnership(orderId: number, storeId: number) {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) throw ApiError.notFound("Order");
@@ -15,9 +44,9 @@ async function assertOrderOwnership(orderId: number, storeId: number) {
   return order;
 }
 
-async function enrichItems(orders: any[]): Promise<any[]> {
+async function enrichItems(orders: OrderWithItems[]): Promise<EnrichedOrder[]> {
   const allNames = [
-    ...new Set(orders.flatMap((o) => o.items.map((i: any) => i.nameSnapshot))),
+    ...new Set(orders.flatMap((o) => o.items.map((i) => i.nameSnapshot))),
   ];
   const menuItems = await prisma.menuItem.findMany({
     where: { name: { in: allNames } },
@@ -26,14 +55,16 @@ async function enrichItems(orders: any[]): Promise<any[]> {
 
   return orders.map((order) => ({
     ...order,
-    items: order.items.map((item: any) => ({
+    items: order.items.map((item) => ({
       ...item,
       menuItemId: nameToId.get(item.nameSnapshot) ?? null,
     })),
   }));
 }
 
-async function recomputeOrderStatusSnapshot(tx: any, orderId: number) {
+type TransactionClient = Prisma.TransactionClient;
+
+async function recomputeOrderStatusSnapshot(tx: TransactionClient, orderId: number) {
   const order = await tx.order.findUnique({
     where: { id: orderId },
     include: { items: true },
@@ -44,38 +75,33 @@ async function recomputeOrderStatusSnapshot(tx: any, orderId: number) {
     return null;
   }
 
-  // Fetch all statuses to get sortOrder for comparison
   const allStatuses = await tx.status.findMany({
     where: { storeId: order.storeId },
   });
   const statusSortMap = new Map(
-    allStatuses.map((s: any) => [s.id, s.sortOrder]),
+    allStatuses.map((s) => [s.id, s.sortOrder]),
   );
 
-  // Find the item with lowest sortOrder (earliest in the workflow)
   let lowestItem = order.items[0];
   for (const item of order.items) {
-    const currentOrder = statusSortMap.get(item.statusId) ?? 99;
-    const lowestOrder = statusSortMap.get(lowestItem.statusId) ?? 99;
+    const currentOrder = item.statusId !== null ? (statusSortMap.get(item.statusId) ?? 99) : 99;
+    const lowestOrder = lowestItem.statusId !== null ? (statusSortMap.get(lowestItem.statusId) ?? 99) : 99;
     if (currentOrder < lowestOrder) {
       lowestItem = item;
     }
   }
 
-  // Check if the lowest is the end status
-  const endStatus = allStatuses.find((s: any) => s.type === StatusType.end);
+  const endStatus = allStatuses.find((s) => s.type === StatusType.end);
   const isEnd = endStatus && lowestItem.statusId === endStatus.id;
 
-  // Always keep the lowest status (never null)
   await tx.order.update({
     where: { id: orderId },
     data: {
-      statusId: lowestItem.statusId,
+      statusId: lowestItem.statusId ?? undefined,
       statusSnapshot: lowestItem.statusSnapshot,
     },
   });
 
-  // Update table orderId: null if end status (free the table)
   if (order.tableSnapshot) {
     const table = await tx.table.findFirst({
       where: { name: order.tableSnapshot, area: { storeId: order.storeId } },
@@ -94,16 +120,16 @@ async function recomputeOrderStatusSnapshot(tx: any, orderId: number) {
 export async function listOrders(storeId: number, query: OrderQueryDto) {
   const limit = query.limit || 20;
   const sortOrder = query.sortOrder || 'desc';
-  const whereClause: any = { storeId };
+  const whereClause: Prisma.OrderWhereInput = { storeId };
 
   if (query.statusId) {
-    whereClause.items = { some: { statusId: query.statusId } };
+    (whereClause as any).items = { some: { statusId: query.statusId } };
   }
 
   if (query.date) {
     const startOfDay = new Date(`${query.date}T00:00:00.000Z`);
     const endOfDay = new Date(`${query.date}T23:59:59.999Z`);
-    whereClause.createdAt = { gte: startOfDay, lte: endOfDay };
+    (whereClause as any).createdAt = { gte: startOfDay, lte: endOfDay };
   }
 
   if (query.cursor) {
@@ -113,12 +139,12 @@ export async function listOrders(storeId: number, query: OrderQueryDto) {
     });
     if (cursorItem) {
       if (sortOrder === 'asc') {
-        whereClause.OR = [
+        (whereClause as any).OR = [
           { createdAt: { gt: cursorItem.createdAt } },
           { createdAt: cursorItem.createdAt, id: { gt: cursorItem.id } },
         ];
       } else {
-        whereClause.OR = [
+        (whereClause as any).OR = [
           { createdAt: { lt: cursorItem.createdAt } },
           { createdAt: cursorItem.createdAt, id: { lt: cursorItem.id } },
         ];

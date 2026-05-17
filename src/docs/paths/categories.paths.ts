@@ -1,24 +1,18 @@
 import type { PathsObject } from 'openapi3-ts/oas31';
 import { successResponse, errorResponses } from '@/docs/schemas/common';
 
-const storeIdParam = {
-  name: 'storeId', in: 'path' as const, required: true,
-  schema: { type: 'integer' as const },
-};
-const catIdParam = {
-  name: 'catId', in: 'path' as const, required: true,
-  schema: { type: 'integer' as const },
-};
+const storeIdParam = { name: 'storeId', in: 'path' as const, required: true, schema: { type: 'integer' as const } };
+const catIdParam = { name: 'catId', in: 'path' as const, required: true, schema: { type: 'integer' as const } };
 
 export const categoryPaths: PathsObject = {
   '/api/stores/{storeId}/categories': {
     get: {
-      tags: ['Categories'],
-      summary: 'Danh sách danh mục thực đơn',
+      tags: ['Danh mục'],
+      summary: 'Danh sách',
       parameters: [storeIdParam],
       responses: {
         200: {
-          description: 'Danh sách danh mục',
+          description: 'Danh sách',
           content: {
             'application/json': {
               schema: {
@@ -26,7 +20,7 @@ export const categoryPaths: PathsObject = {
                 properties: {
                   success: { type: 'boolean', example: true },
                   data: { type: 'array', items: { $ref: '#/components/schemas/Category' } },
-                  message: { type: 'string', example: 'Danh sách danh mục' },
+                  message: { type: 'string', example: 'Danh sách' },
                 },
               },
             },
@@ -36,60 +30,46 @@ export const categoryPaths: PathsObject = {
       },
     },
     post: {
-      tags: ['Categories'],
-      summary: 'Tạo danh mục mới',
+      tags: ['Danh mục'],
+      summary: 'Tạo',
       parameters: [storeIdParam],
       requestBody: {
         required: true,
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/CreateCategoryRequest' },
-            examples: {
-              default: {
-                summary: 'Ví dụ tạo danh mục',
-                value: { name: 'Cà phê máy', sortOrder: 1 },
-              },
-            },
+            examples: { default: { value: { name: 'Cà phê máy', sortOrder: 1 } } },
           },
         },
       },
       responses: {
-        201: successResponse('Category', 'Tạo danh mục thành công'),
+        201: successResponse('Category', 'Tạo thành công'),
         ...errorResponses(400, 401, 403),
       },
     },
   },
-
   '/api/stores/{storeId}/categories/reorder': {
     post: {
-      tags: ['Categories'],
-      summary: 'Sắp xếp thứ tự danh mục',
+      tags: ['Danh mục'],
+      summary: 'Sắp xếp',
       parameters: [storeIdParam],
       requestBody: {
         required: true,
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/ReorderCategoriesRequest' },
-            examples: {
-              default: {
-                summary: 'Ví dụ sắp xếp danh mục',
-                value: { ids: [2, 1, 3] },
-              },
-            },
+            examples: { default: { value: { ids: [2, 1, 3] } } },
           },
         },
       },
       responses: {
         200: {
-          description: 'Đã cập nhật thứ tự danh mục',
+          description: 'Đã sắp xếp',
           content: {
             'application/json': {
               schema: {
                 type: 'object',
-                properties: {
-                  success: { type: 'boolean', example: true },
-                  message: { type: 'string', example: 'Đã cập nhật thứ tự danh mục' },
-                },
+                properties: { success: { type: 'boolean', example: true }, message: { type: 'string', example: 'Đã sắp xếp' } },
               },
             },
           },
@@ -98,23 +78,17 @@ export const categoryPaths: PathsObject = {
       },
     },
   },
-
   '/api/stores/{storeId}/categories/{catId}': {
     put: {
-      tags: ['Categories'],
-      summary: 'Cập nhật danh mục',
+      tags: ['Danh mục'],
+      summary: 'Cập nhật',
       parameters: [storeIdParam, catIdParam],
       requestBody: {
         required: true,
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/UpdateCategoryRequest' },
-            examples: {
-              default: {
-                summary: 'Ví dụ cập nhật',
-                value: { name: 'Cà phê pha máy', sortOrder: 2 },
-              },
-            },
+            examples: { default: { value: { name: 'Cà phê pha máy', sortOrder: 2 } } },
           },
         },
       },
@@ -124,8 +98,8 @@ export const categoryPaths: PathsObject = {
       },
     },
     delete: {
-      tags: ['Categories'],
-      summary: 'Xóa danh mục',
+      tags: ['Danh mục'],
+      summary: 'Xóa',
       parameters: [storeIdParam, catIdParam],
       responses: {
         200: successResponse('Category', 'Xóa thành công'),

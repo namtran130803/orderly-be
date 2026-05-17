@@ -1,24 +1,18 @@
 import type { PathsObject } from 'openapi3-ts/oas31';
 import { successResponse, errorResponses } from '@/docs/schemas/common';
 
-const storeIdParam = {
-  name: 'storeId', in: 'path' as const, required: true,
-  schema: { type: 'integer' as const },
-};
-const itemIdParam = {
-  name: 'itemId', in: 'path' as const, required: true,
-  schema: { type: 'integer' as const },
-};
+const storeIdParam = { name: 'storeId', in: 'path' as const, required: true, schema: { type: 'integer' as const } };
+const itemIdParam = { name: 'itemId', in: 'path' as const, required: true, schema: { type: 'integer' as const } };
 
 export const menuItemPaths: PathsObject = {
   '/api/stores/{storeId}/menu-items': {
     get: {
-      tags: ['Menu Items'],
-      summary: 'Danh sách món ăn của cửa hàng',
+      tags: ['Món'],
+      summary: 'Danh sách',
       parameters: [storeIdParam],
       responses: {
         200: {
-          description: 'Danh sách món ăn',
+          description: 'Danh sách',
           content: {
             'application/json': {
               schema: {
@@ -26,7 +20,7 @@ export const menuItemPaths: PathsObject = {
                 properties: {
                   success: { type: 'boolean', example: true },
                   data: { type: 'array', items: { $ref: '#/components/schemas/MenuItem' } },
-                  message: { type: 'string', example: 'Danh sách món ăn' },
+                  message: { type: 'string', example: 'Danh sách' },
                 },
               },
             },
@@ -36,46 +30,35 @@ export const menuItemPaths: PathsObject = {
       },
     },
     post: {
-      tags: ['Menu Items'],
-      summary: 'Thêm món ăn mới',
+      tags: ['Món'],
+      summary: 'Tạo',
       parameters: [storeIdParam],
       requestBody: {
         required: true,
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/CreateMenuItemRequest' },
-            examples: {
-              default: {
-                summary: 'Ví dụ thêm món',
-                value: { name: 'Cà phê Sữa đá', price: 29000, categoryId: 1 },
-              },
-            },
+            examples: { default: { value: { name: 'Cà phê Sữa đá', price: 29000, categoryId: 1 } } },
           },
         },
       },
       responses: {
-        201: successResponse('MenuItem', 'Thêm món thành công'),
+        201: successResponse('MenuItem', 'Tạo thành công'),
         ...errorResponses(400, 401, 403, 404),
       },
     },
   },
-
   '/api/stores/{storeId}/menu-items/{itemId}': {
     put: {
-      tags: ['Menu Items'],
-      summary: 'Cập nhật món ăn',
+      tags: ['Món'],
+      summary: 'Cập nhật',
       parameters: [storeIdParam, itemIdParam],
       requestBody: {
         required: true,
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/UpdateMenuItemRequest' },
-            examples: {
-              default: {
-                summary: 'Ví dụ cập nhật',
-                value: { price: 35000 },
-              },
-            },
+            examples: { default: { value: { price: 35000 } } },
           },
         },
       },
@@ -85,8 +68,8 @@ export const menuItemPaths: PathsObject = {
       },
     },
     delete: {
-      tags: ['Menu Items'],
-      summary: 'Xóa món ăn',
+      tags: ['Món'],
+      summary: 'Xóa',
       parameters: [storeIdParam, itemIdParam],
       responses: {
         200: successResponse('MenuItem', 'Xóa thành công'),

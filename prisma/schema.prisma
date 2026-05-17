@@ -14,28 +14,32 @@ enum StatusType {
 }
 
 model User {
-  id           Int      @id @default(autoincrement())
+  id           Int         @id @default(autoincrement())
   name         String
-  phone        String   @unique
-  passwordHash String   @map("password_hash")
-  createdAt    DateTime @default(now()) @map("created_at")
+  phone        String      @unique
+  passwordHash String      @map("password_hash")
+  createdAt    DateTime    @default(now()) @map("created_at")
   stores       Store[]
+  userRoles    UserRole[]
+  storeUsers   StoreUser[]
 
   @@map("users")
 }
 
 model Store {
-  id         Int        @id @default(autoincrement())
-  userId     Int        @map("user_id")
+  id         Int         @id @default(autoincrement())
+  userId     Int         @map("user_id")
   name       String
   address    String?
-  createdAt  DateTime   @default(now()) @map("created_at")
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime    @default(now()) @map("created_at")
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   categories Category[]
   areas      Area[]
   statuses   Status[]
   orders     Order[]
   expenses   Expense[]
+  storeUsers StoreUser[]
+  storeRoles StoreRole[]
 
   @@map("stores")
 }
@@ -52,12 +56,12 @@ model Category {
 }
 
 model MenuItem {
-  id          Int         @id @default(autoincrement())
-  categoryId  Int         @map("category_id")
+  id          Int      @id @default(autoincrement())
+  categoryId  Int      @map("category_id")
   name        String
   price       Int
-  isAvailable Boolean     @default(true) @map("is_available")
-  category    Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  isAvailable Boolean  @default(true) @map("is_available")
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@map("menu_items")
 }
@@ -74,12 +78,12 @@ model Area {
 }
 
 model Table {
-  id        Int    @id @default(autoincrement())
-  areaId    Int    @map("area_id")
+  id        Int     @id @default(autoincrement())
+  areaId    Int     @map("area_id")
   name      String
-  orderId   Int?   @map("order_id")
-  sortOrder Int    @default(0) @map("sort_order")
-  area      Area   @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  orderId   Int?    @map("order_id")
+  sortOrder Int     @default(0) @map("sort_order")
+  area      Area    @relation(fields: [areaId], references: [id], onDelete: Cascade)
   orders    Order[]
 
   @@map("tables")
@@ -116,15 +120,15 @@ model Order {
 }
 
 model OrderItem {
-  id             Int       @id @default(autoincrement())
-  orderId        Int       @map("order_id")
-  statusId       Int?      @map("status_id")
-  statusSnapshot String?   @map("status_snapshot")
-  nameSnapshot   String    @map("name_snapshot")
-  priceSnapshot  Int       @map("price_snapshot")
+  id             Int     @id @default(autoincrement())
+  orderId        Int     @map("order_id")
+  statusId       Int?    @map("status_id")
+  statusSnapshot String? @map("status_snapshot")
+  nameSnapshot   String  @map("name_snapshot")
+  priceSnapshot  Int     @map("price_snapshot")
   qty            Int
-  order          Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  status         Status?   @relation(fields: [statusId], references: [id], onDelete: SetNull)
+  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status         Status? @relation(fields: [statusId], references: [id], onDelete: SetNull)
 
   @@map("order_items")
 }
@@ -140,4 +144,101 @@ model Expense {
   store       Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@map("expenses")
+}
+
+// ── RBAC: Phân quyền động ─────────────────────────────────────
+
+model Permission {
+  id             Int                   @id @default(autoincrement())
+  code           String                @unique
+  name           String
+  rolePerms      RolePermission[]
+  storeRolePerms StoreRolePermission[]
+
+  @@map("permissions")
+}
+
+model Role {
+  id          Int              @id @default(autoincrement())
+  name        String           @unique
+  code        String           @unique
+  isSystem    Boolean          @default(false) @map("is_system")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  permissions RolePermission[]
+  userRoles   UserRole[]
+
+  @@map("roles")
+}
+
+model RolePermission {
+  roleId       Int        @map("role_id")
+  permissionId Int        @map("permission_id")
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  userId Int  @map("user_id")
+  roleId Int  @map("role_id")
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+// ── Store-level RBAC ─────────────────────────────────────────────
+
+enum StoreUserRoleType {
+  owner
+  employee
+}
+
+model StoreUser {
+  id        Int               @id @default(autoincrement())
+  userId    Int               @map("user_id")
+  storeId   Int               @map("store_id")
+  role      StoreUserRoleType @default(employee)
+  createdAt DateTime          @default(now()) @map("created_at")
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  store     Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  roles     StoreUserRole[]
+
+  @@unique([userId, storeId])
+  @@map("store_users")
+}
+
+model StoreRole {
+  id          Int                   @id @default(autoincrement())
+  storeId     Int                   @map("store_id")
+  name        String
+  store       Store                 @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  permissions StoreRolePermission[]
+  roles       StoreUserRole[]
+
+  @@unique([storeId, name])
+  @@map("store_roles")
+}
+
+model StoreRolePermission {
+  storeRoleId  Int        @map("store_role_id")
+  permissionId Int        @map("permission_id")
+  storeRole    StoreRole  @relation(fields: [storeRoleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([storeRoleId, permissionId])
+  @@map("store_role_permissions")
+}
+
+model StoreUserRole {
+  storeUserId Int       @map("store_user_id")
+  storeRoleId Int       @map("store_role_id")
+  storeUser   StoreUser @relation(fields: [storeUserId], references: [id], onDelete: Cascade)
+  storeRole   StoreRole @relation(fields: [storeRoleId], references: [id], onDelete: Cascade)
+
+  @@id([storeUserId, storeRoleId])
+  @@map("store_user_roles")
 }

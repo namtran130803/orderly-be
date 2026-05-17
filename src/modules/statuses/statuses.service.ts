@@ -1,7 +1,15 @@
 import { prisma } from '@/config/prisma';
 import { ApiError } from '@/lib/response';
 import { CreateStatusDto, UpdateStatusDto, ReorderStatusesDto } from '@/modules/statuses/statuses.schema';
-import { StatusType } from '@prisma/client';
+import { StatusType, Status } from '@prisma/client';
+
+interface StatusPlaceholder {
+  id: string;
+  storeId: number;
+  name: string;
+  type: StatusType;
+  sortOrder: number;
+}
 
 async function assertNoActiveOrders(storeId: number) {
   const endStatus = await prisma.status.findFirst({
@@ -57,23 +65,20 @@ export async function createStatus(storeId: number, dto: CreateStatusDto) {
     if (endIndex === -1) throw ApiError.internal('Hệ thống lỗi: Không tìm thấy trạng thái kết thúc');
 
     // Tạo đối tượng status mới dạng mid
-    const newStatusPlaceholder = {
+    const newStatusPlaceholder: StatusPlaceholder = {
       id: 'NEW_TEMP_ID',
       storeId,
       name: dto.name,
       type: StatusType.mid,
-      sortOrder: 0, // Sẽ được tính lại ngay sau đây
+      sortOrder: 0,
     };
 
-    // Chèn vào trước trạng thái end
-    const updatedList = [
+    const updatedList: (Status | StatusPlaceholder)[] = [
       ...currentStatuses.slice(0, endIndex),
-      newStatusPlaceholder as any,
+      newStatusPlaceholder,
       ...currentStatuses.slice(endIndex),
     ];
 
-    // Để tránh xung đột unique constraint trên [storeId, sortOrder],
-    // ta dời các bản ghi hiện tại sang dải giá trị an toàn (+1000)
     for (const s of currentStatuses) {
       await tx.status.update({
         where: { id: s.id },
@@ -81,7 +86,7 @@ export async function createStatus(storeId: number, dto: CreateStatusDto) {
       });
     }
 
-    let createdStatusHolder: any = null;
+    let createdStatusHolder: Status | null = null;
 
     // Gán lại sortOrder chuẩn: start là 1, end là 20, các mid ở giữa lần lượt là 2, 3, 4... (tối đa 19)
     for (let i = 0; i < updatedList.length; i++) {
@@ -106,7 +111,7 @@ export async function createStatus(storeId: number, dto: CreateStatusDto) {
         });
       } else {
         await tx.status.update({
-          where: { id: item.id },
+          where: { id: item.id as number },
           data: { sortOrder: newOrder },
         });
       }

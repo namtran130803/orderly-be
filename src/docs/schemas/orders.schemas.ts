@@ -6,7 +6,7 @@ export const orderSchemas: Record<string, any> = {
     required: ['menuItemId', 'qty'],
     properties: {
       menuItemId: { type: 'integer', example: 1 },
-      qty:        { type: 'integer', example: 2 },
+      qty: { type: 'integer', example: 2 },
     },
   },
   CreateOrderRequest: {
@@ -14,10 +14,7 @@ export const orderSchemas: Record<string, any> = {
     required: ['items'],
     properties: {
       tableName: { type: 'string', nullable: true, example: 'Bàn 101' },
-      items: {
-        type: 'array',
-        items: { $ref: '#/components/schemas/OrderItemInput' },
-      },
+      items: { type: 'array', items: { $ref: '#/components/schemas/OrderItemInput' } },
     },
   },
   UpdateOrderRequest: {
@@ -25,10 +22,7 @@ export const orderSchemas: Record<string, any> = {
     required: ['items'],
     properties: {
       tableName: { type: 'string', nullable: true, example: 'Bàn 101' },
-      items: {
-        type: 'array',
-        items: { $ref: '#/components/schemas/OrderItemInput' },
-      },
+      items: { type: 'array', items: { $ref: '#/components/schemas/OrderItemInput' } },
     },
   },
 };

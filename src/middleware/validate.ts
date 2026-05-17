@@ -4,7 +4,7 @@ import { sendError } from '@/lib/response';
 
 type Target = 'body' | 'params' | 'query';
 
-export function validate(schema: ZodSchema, target: Target = 'body') {
+export function validate<T>(schema: ZodSchema<T>, target: Target = 'body') {
   return (req: Request, res: Response, next: NextFunction): void => {
     const result = schema.safeParse(req[target]);
     if (!result.success) {
@@ -15,8 +15,7 @@ export function validate(schema: ZodSchema, target: Target = 'body') {
       sendError(res, 400, 'VALIDATION_ERROR', 'Dữ liệu không hợp lệ', details);
       return;
     }
-    // Ghi đè bằng data đã được parse/sanitize — loại bỏ field thừa
-    req[target] = result.data as any;
+    (req as any)[target] = result.data;
     next();
   };
 }

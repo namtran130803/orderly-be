@@ -1,18 +1,36 @@
 import { prisma } from '@/config/prisma';
-import { ApiError } from '@/lib/response';
 import { DEFAULT_STATUSES } from '@/lib/constants';
 import { CreateStoreDto, UpdateStoreDto } from '@/modules/stores/stores.schema';
-import { StatusType } from '@prisma/client';
+import { StatusType, StoreUserRoleType } from '@prisma/client';
+import { ROLE_DEFS } from '@/config/rbac/rbac-defs';
 
 export async function listStores(userId: number) {
-  return prisma.store.findMany({
+  const storeUsers = await prisma.storeUser.findMany({
     where: { userId },
-    orderBy: { createdAt: 'desc' },
+    orderBy: {
+      store: {
+        createdAt: 'desc',
+      },
+    },
+    include: {
+      store: true,
+      roles: {
+        include: {
+          storeRole: true,
+        },
+      },
+    },
   });
+
+  return storeUsers.map((su) => ({
+    id: su.store.id,
+    name: su.store.name,
+    address: su.store.address,
+    roleName: su.roles.map((r) => r.storeRole.name),
+  }));
 }
 
 export async function createStore(userId: number, dto: CreateStoreDto) {
-  // Tạo store và tự động sinh trạng thái quy trình mặc định chuẩn
   return prisma.$transaction(async (tx) => {
     const store = await tx.store.create({
       data: {
@@ -28,6 +46,32 @@ export async function createStore(userId: number, dto: CreateStoreDto) {
         { storeId: store.id, name: DEFAULT_STATUSES.END, type: StatusType.end, sortOrder: 20 },
       ],
     });
+
+    await tx.storeUser.create({
+      data: {
+        userId,
+        storeId: store.id,
+        role: StoreUserRoleType.owner,
+      },
+    });
+
+    // Gán role hệ thống "Chủ cửa hàng" (nếu chưa có)
+    const storeOwnerRole = await tx.role.findUnique({
+      where: { code: ROLE_DEFS.STORE_OWNER.code },
+    });
+    if (storeOwnerRole) {
+      const hasRole = await tx.userRole.findFirst({
+        where: { userId, roleId: storeOwnerRole.id },
+      });
+      if (!hasRole) {
+        await tx.userRole.create({
+          data: {
+            userId,
+            roleId: storeOwnerRole.id,
+          },
+        });
+      }
+    }
 
     return store;
   });

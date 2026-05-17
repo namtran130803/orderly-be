@@ -17,11 +17,22 @@ export async function authenticate(
 
     const user = await prisma.user.findUnique({
       where: { id: Number(payload.sub) },
-      select: { id: true, name: true, phone: true },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+      },
     });
+
     if (!user) throw ApiError.unauthorized();
 
-    req.user = user;
+    req.user = {
+      id: user.id,
+      name: user.name,
+      phone: user.phone,
+      permissions: [],
+      roles: [],
+    };
     next();
   } catch (err) {
     next(err);

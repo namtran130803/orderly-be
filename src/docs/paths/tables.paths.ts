@@ -1,25 +1,18 @@
 import type { PathsObject } from 'openapi3-ts/oas31';
 import { successResponse, errorResponses } from '@/docs/schemas/common';
 
-const storeIdParam = {
-  name: 'storeId', in: 'path' as const, required: true,
-  schema: { type: 'integer' as const },
-};
-
-const tableIdParam = {
-  name: 'tableId', in: 'path' as const, required: true,
-  schema: { type: 'integer' as const },
-};
+const storeIdParam = { name: 'storeId', in: 'path' as const, required: true, schema: { type: 'integer' as const } };
+const tableIdParam = { name: 'tableId', in: 'path' as const, required: true, schema: { type: 'integer' as const } };
 
 export const tablePaths: PathsObject = {
   '/api/stores/{storeId}/tables': {
     get: {
-      tags: ['Tables'],
-      summary: 'Danh sách bàn của cửa hàng',
+      tags: ['Bàn'],
+      summary: 'Danh sách',
       parameters: [storeIdParam],
       responses: {
         200: {
-          description: 'Danh sách bàn',
+          description: 'Danh sách',
           content: {
             'application/json': {
               schema: {
@@ -27,7 +20,7 @@ export const tablePaths: PathsObject = {
                 properties: {
                   success: { type: 'boolean', example: true },
                   data: { type: 'array', items: { $ref: '#/components/schemas/Table' } },
-                  message: { type: 'string', example: 'Danh sách bàn' },
+                  message: { type: 'string', example: 'Danh sách' },
                 },
               },
             },
@@ -37,23 +30,17 @@ export const tablePaths: PathsObject = {
       },
     },
   },
-
   '/api/stores/{storeId}/tables/{tableId}': {
     put: {
-      tags: ['Tables'],
-      summary: 'Cập nhật tên bàn',
+      tags: ['Bàn'],
+      summary: 'Cập nhật',
       parameters: [storeIdParam, tableIdParam],
       requestBody: {
         required: true,
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/UpdateTableRequest' },
-            examples: {
-              default: {
-                summary: 'Ví dụ đổi tên bàn',
-                value: { name: 'Bàn 1 VIP' },
-              },
-            },
+            examples: { default: { value: { name: 'Bàn 1 VIP' } } },
           },
         },
       },
@@ -63,11 +50,11 @@ export const tablePaths: PathsObject = {
       },
     },
     delete: {
-      tags: ['Tables'],
-      summary: 'Xóa bàn',
+      tags: ['Bàn'],
+      summary: 'Xóa',
       parameters: [storeIdParam, tableIdParam],
       responses: {
-        200: successResponse('null', 'Xóa bàn thành công'),
+        200: successResponse('null', 'Xóa thành công'),
         ...errorResponses(401, 403, 404),
       },
     },

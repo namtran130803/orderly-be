@@ -16,26 +16,29 @@ export async function register(dto: RegisterDto) {
   // Mã hóa mật khẩu
   const passwordHash = await hashPassword(dto.password);
 
-  // Tạo người dùng mới
-  const user = await prisma.user.create({
-    data: {
-      name: dto.name,
-      phone: dto.phone,
-      passwordHash,
-    },
-    select: {
-      id: true,
-      name: true,
-      phone: true,
-      createdAt: true,
-    },
+  return prisma.$transaction(async (tx) => {
+    // 1. Tạo người dùng mới
+    const user = await tx.user.create({
+      data: {
+        name: dto.name,
+        phone: dto.phone,
+        passwordHash,
+      },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        createdAt: true,
+      },
+    });
+
+    // 2. Ký JWT
+    const token = signToken(user.id);
+
+    return { token, user };
   });
-
-  // Ký JWT
-  const token = signToken(user.id);
-
-  return { token, user };
 }
+
 
 export async function login(dto: LoginDto) {
   // Tìm người dùng theo số điện thoại

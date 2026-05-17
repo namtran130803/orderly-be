@@ -4,20 +4,15 @@ import { successResponse, errorResponses } from '@/docs/schemas/common';
 export const authPaths: PathsObject = {
   '/api/auth/register': {
     post: {
-      tags: ['Auth'],
-      summary: 'Đăng ký tài khoản',
-      security: [],                         // Override: không cần JWT
+      tags: ['Xác thực'],
+      summary: 'Đăng ký',
+      security: [],
       requestBody: {
         required: true,
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/RegisterRequest' },
-            examples: {
-              default: {
-                summary: 'Ví dụ đăng ký',
-                value: { name: 'Trần Trọng Nam', phone: '0901234567', password: 'password123' },
-              },
-            },
+            examples: { default: { value: { name: 'Trần Trọng Nam', phone: '0901234567', password: 'password123' } } },
           },
         },
       },
@@ -27,10 +22,9 @@ export const authPaths: PathsObject = {
       },
     },
   },
-
   '/api/auth/login': {
     post: {
-      tags: ['Auth'],
+      tags: ['Xác thực'],
       summary: 'Đăng nhập',
       security: [],
       requestBody: {
@@ -38,12 +32,7 @@ export const authPaths: PathsObject = {
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/LoginRequest' },
-            examples: {
-              default: {
-                summary: 'Ví dụ đăng nhập',
-                value: { phone: '0901234567', password: 'password123' },
-              },
-            },
+            examples: { default: { value: { phone: '0901234567', password: 'password123' } } },
           },
         },
       },
@@ -53,11 +42,10 @@ export const authPaths: PathsObject = {
       },
     },
   },
-
   '/api/auth/me': {
     get: {
-      tags: ['Auth'],
-      summary: 'Thông tin người dùng hiện tại',
+      tags: ['Xác thực'],
+      summary: 'Thông tin user',
       responses: {
         200: successResponse('UserProfile'),
         ...errorResponses(401),

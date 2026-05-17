@@ -1,12 +1,20 @@
-import { Request, Response, NextFunction } from 'express';
-import * as service from '@/modules/stores/stores.service';
-import { sendSuccess } from '@/lib/response';
-import { CreateStoreDto, UpdateStoreDto } from '@/modules/stores/stores.schema';
+import { Request, Response, NextFunction } from "express";
+import * as service from "@/modules/stores/stores.service";
+import { sendSuccess, ApiError } from "@/lib/response";
+import { CreateStoreDto, UpdateStoreDto } from "@/modules/stores/stores.schema";
+import { PERMS } from "@/config/rbac/rbac-defs";
 
 export async function list(req: Request, res: Response, next: NextFunction) {
   try {
-    const stores = await service.listStores(req.user!.id);
-    sendSuccess(res, stores, 'Danh sách cửa hàng');
+    let targetUserId = req.user!.id;
+    if (req.query.userId) {
+      if (!req.user!.permissions.includes(PERMS.stores.bypass_owner)) {
+        throw ApiError.forbidden("Không có quyền");
+      }
+      targetUserId = Number(req.query.userId);
+    }
+    const stores = await service.listStores(targetUserId);
+    sendSuccess(res, stores, "Danh sách");
   } catch (err) {
     next(err);
   }
@@ -14,9 +22,16 @@ export async function list(req: Request, res: Response, next: NextFunction) {
 
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
-    const dto = req.body as CreateStoreDto;
-    const store = await service.createStore(req.user!.id, dto);
-    sendSuccess(res, store, 'Tạo cửa hàng thành công', 201);
+    const { userId, ...dto } = req.body as CreateStoreDto & { userId?: number };
+    let ownerId = req.user!.id;
+    if (userId) {
+      if (!req.user!.permissions.includes(PERMS.stores.bypass_owner)) {
+        throw ApiError.forbidden("Không có quyền");
+      }
+      ownerId = userId;
+    }
+    const store = await service.createStore(ownerId, dto);
+    sendSuccess(res, store, "Tạo thành công", 201);
   } catch (err) {
     next(err);
   }
@@ -25,9 +40,8 @@ export async function create(req: Request, res: Response, next: NextFunction) {
 export async function update(req: Request, res: Response, next: NextFunction) {
   try {
     const dto = req.body as UpdateStoreDto;
-    // req.store đã được kiểm tra quyền truy cập ở middleware requireStoreAccess
     const store = await service.updateStore(req.store!.id, dto);
-    sendSuccess(res, store, 'Cập nhật thông tin cửa hàng thành công');
+    sendSuccess(res, store, "Cập nhật thành công");
   } catch (err) {
     next(err);
   }
@@ -36,7 +50,7 @@ export async function update(req: Request, res: Response, next: NextFunction) {
 export async function remove(req: Request, res: Response, next: NextFunction) {
   try {
     await service.deleteStore(req.store!.id);
-    sendSuccess(res, null, 'Đã xóa cửa hàng');
+    sendSuccess(res, null, "Xóa thành công");
   } catch (err) {
     next(err);
   }

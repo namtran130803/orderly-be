@@ -1,4 +1,5 @@
 import { prisma } from '@/config/prisma';
+import { Prisma } from '@prisma/client';
 import { ApiError } from '@/lib/response';
 import { ExpenseQueryDto, CreateExpenseDto, UpdateExpenseDto } from '@/modules/expenses/expenses.schema';
 
@@ -11,15 +12,15 @@ async function assertExpenseOwnership(invId: number, storeId: number) {
 
 export async function listExpenses(storeId: number, query: ExpenseQueryDto) {
   const limit = query.limit || 20;
-  const whereClause: any = { storeId };
+  const whereClause: Prisma.ExpenseWhereInput = { storeId };
 
   if (query.from || query.to) {
     whereClause.rawDate = {};
     if (query.from) {
-      whereClause.rawDate.gte = new Date(`${query.from}T00:00:00.000Z`);
+      (whereClause.rawDate as any).gte = new Date(`${query.from}T00:00:00.000Z`);
     }
     if (query.to) {
-      whereClause.rawDate.lte = new Date(`${query.to}T23:59:59.999Z`);
+      (whereClause.rawDate as any).lte = new Date(`${query.to}T23:59:59.999Z`);
     }
   }
 
@@ -29,7 +30,7 @@ export async function listExpenses(storeId: number, query: ExpenseQueryDto) {
       select: { rawDate: true, id: true },
     });
     if (cursorItem) {
-      whereClause.OR = [
+      (whereClause as any).OR = [
         { rawDate: { lt: cursorItem.rawDate } },
         { rawDate: cursorItem.rawDate, id: { lt: cursorItem.id } },
       ];
@@ -68,7 +69,7 @@ export async function createExpense(storeId: number, dto: CreateExpenseDto) {
 export async function updateExpense(storeId: number, invId: number, dto: UpdateExpenseDto) {
   const expense = await assertExpenseOwnership(invId, storeId);
 
-  const updateData: any = {};
+  const updateData: Prisma.ExpenseUpdateInput = {};
   if (dto.title !== undefined) updateData.title = dto.title;
   if (dto.description !== undefined) updateData.description = dto.description;
   if (dto.amount !== undefined) updateData.amount = dto.amount;
