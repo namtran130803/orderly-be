@@ -15,6 +15,16 @@ export async function listEmployees(storeId: number) {
           createdAt: true,
         },
       },
+      roles: {
+        select: {
+          storeRole: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      },
     },
     orderBy: { createdAt: 'desc' },
   });
@@ -170,20 +180,6 @@ export async function assignRoles(
     });
 
     return result!;
-  });
-}
-
-export async function removeRole(storeId: number, employeeId: number, roleId: number) {
-  const storeUser = await prisma.storeUser.findFirst({
-    where: { id: employeeId, storeId, role: StoreUserRoleType.employee },
-  });
-  if (!storeUser) throw ApiError.notFound('Nhân viên');
-
-  await prisma.storeUserRole.deleteMany({
-    where: {
-      storeUserId: employeeId,
-      storeRoleId: roleId,
-    },
   });
 }
 

@@ -51,32 +51,36 @@ export async function getUserRoles(userId: number) {
   }));
 }
 
-export async function assignRole(userId: number, roleId: number) {
+export async function assignRoles(userId: number, roleIds: number[]) {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw ApiError.notFound('User');
 
-  const role = await prisma.role.findUnique({ where: { id: roleId } });
-  if (!role) throw ApiError.notFound('Role');
+  if (roleIds.length > 0) {
+    const validRoles = await prisma.role.findMany({
+      where: { id: { in: roleIds } },
+    });
+    if (validRoles.length !== roleIds.length) {
+      throw ApiError.badRequest('Một hoặc nhiều vai trò hệ thống không tồn tại');
+    }
+  }
 
-  const existing = await prisma.userRole.findUnique({
-    where: { userId_roleId: { userId, roleId } },
-  });
-  if (existing) throw ApiError.conflict('Người dùng đã có vai trò này');
+  return prisma.$transaction(async (tx) => {
+    await tx.userRole.deleteMany({ where: { userId } });
 
-  await prisma.userRole.create({
-    data: { userId, roleId },
-  });
+    if (roleIds.length > 0) {
+      await tx.userRole.createMany({
+        data: roleIds.map((roleId) => ({
+          userId,
+          roleId,
+        })),
+      });
+    }
 
-  return { userId, roleId, role };
-}
+    const assignedRoles = await tx.userRole.findMany({
+      where: { userId },
+      include: { role: true },
+    });
 
-export async function removeRole(userId: number, roleId: number) {
-  const ur = await prisma.userRole.findUnique({
-    where: { userId_roleId: { userId, roleId } },
-  });
-  if (!ur) throw ApiError.notFound('UserRole');
-
-  await prisma.userRole.delete({
-    where: { userId_roleId: { userId, roleId } },
+    return assignedRoles.map((ur) => ur.role);
   });
 }

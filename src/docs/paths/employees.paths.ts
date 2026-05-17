@@ -92,12 +92,4 @@ export const employeePaths: PathsObject = {
       },
     },
   },
-  '/api/stores/{storeId}/employees/{employeeId}/roles/{roleId}': {
-    delete: {
-      tags: ['Nhân viên'],
-      summary: 'Gỡ vai trò',
-      parameters: [storeIdParam, employeeIdParam, roleIdParam],
-      responses: { 204: { description: 'Đã gỡ' }, ...errorResponses(401, 403, 404) },
-    },
-  },
 };

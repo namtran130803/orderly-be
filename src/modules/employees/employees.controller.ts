@@ -38,18 +38,6 @@ export async function assignRoles(req: Request, res: Response, next: NextFunctio
   }
 }
 
-export async function removeRole(req: Request, res: Response, next: NextFunction) {
-  try {
-    const storeId = Number(req.params.storeId);
-    const employeeId = Number(req.params.employeeId);
-    const roleId = Number(req.params.roleId);
-    await service.removeRole(storeId, employeeId, roleId);
-    res.status(204).send();
-  } catch (err) {
-    next(err);
-  }
-}
-
 export async function getRoles(req: Request, res: Response, next: NextFunction) {
   try {
     const storeId = Number(req.params.storeId);

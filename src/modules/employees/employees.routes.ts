@@ -27,11 +27,6 @@ router.post(
   validate(assignRolesSchema),
   controller.assignRoles,
 );
-router.delete(
-  "/:employeeId/roles/:roleId",
-  requirePermission(PERMS.employees.remove_role),
-  controller.removeRole,
-);
 router.get(
   "/:employeeId/roles",
   requirePermission(PERMS.employees.list),

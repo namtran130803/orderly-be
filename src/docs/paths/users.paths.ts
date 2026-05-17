@@ -68,45 +68,13 @@ export const usersPaths: PathsObject = {
         content: {
           "application/json": {
             schema: { $ref: "#/components/schemas/AssignRoleRequest" },
-            examples: { default: { value: { roleId: 1 } } },
+            examples: { default: { value: { roleIds: [1, 2] } } },
           },
         },
       },
       responses: {
         201: successResponse("UserWithRoles", "Gán thành công"),
         ...errorResponses(400, 401, 403, 404),
-      },
-    },
-  },
-  "/api/users/{userId}/roles/{roleId}": {
-    delete: {
-      tags: ["Người dùng"],
-      summary: "Gỡ vai trò",
-      parameters: [
-        userIdParam,
-        {
-          name: "roleId",
-          in: "path" as const,
-          required: true,
-          schema: { type: "integer" as const },
-        },
-      ],
-      responses: {
-        200: {
-          description: "Đã gỡ",
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  success: { type: "boolean", example: true },
-                  message: { type: "string", example: "Đã gỡ" },
-                },
-              },
-            },
-          },
-        },
-        ...errorResponses(401, 403, 404),
       },
     },
   },

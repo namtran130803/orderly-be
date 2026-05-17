@@ -1,16 +1,11 @@
 import { z } from 'zod';
 
 export const assignRoleSchema = z.object({
-  roleId: z.number().int().positive('Vai trò không hợp lệ'),
+  roleIds: z.array(z.number().int().positive('Vai trò không hợp lệ')).min(1, 'Phải chọn ít nhất một vai trò'),
 });
 
 export const userRoleParamsSchema = z.object({
   userId: z.coerce.number().int().positive(),
 });
 
-export const userRoleDeleteParamsSchema = z.object({
-  userId: z.coerce.number().int().positive(),
-  roleId: z.coerce.number().int().positive(),
-});
-
-export type AssignRoleDto = z.infer<typeof assignRoleSchema>;
+export type AssignRolesDto = z.infer<typeof assignRoleSchema>;

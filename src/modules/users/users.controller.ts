@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import * as service from '@/modules/users/users.service';
 import { sendSuccess } from '@/lib/response';
-import type { AssignRoleDto } from '@/modules/users/users.schema';
+import type { AssignRolesDto } from '@/modules/users/users.schema';
 
 export async function listUsers(req: Request, res: Response, next: NextFunction) {
   try {
@@ -25,20 +25,9 @@ export async function listUserRoles(req: Request, res: Response, next: NextFunct
 export async function assignRole(req: Request, res: Response, next: NextFunction) {
   try {
     const userId = Number(req.params.userId);
-    const dto = req.body as AssignRoleDto;
-    const result = await service.assignRole(userId, dto.roleId);
+    const dto = req.body as AssignRolesDto;
+    const result = await service.assignRoles(userId, dto.roleIds);
     sendSuccess(res, result, 'Gán vai trò thành công', 201);
-  } catch (err) {
-    next(err);
-  }
-}
-
-export async function removeRole(req: Request, res: Response, next: NextFunction) {
-  try {
-    const userId = Number(req.params.userId);
-    const roleId = Number(req.params.roleId);
-    await service.removeRole(userId, roleId);
-    sendSuccess(res, null, 'Đã xóa vai trò khỏi người dùng');
   } catch (err) {
     next(err);
   }

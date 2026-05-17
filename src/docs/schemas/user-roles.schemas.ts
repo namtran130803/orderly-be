@@ -21,9 +21,9 @@ export const userRolesSchemas: Record<string, SchemaObject> = {
   },
   AssignRoleRequest: {
     type: 'object',
-    required: ['roleId'],
+    required: ['roleIds'],
     properties: {
-      roleId: { type: 'integer', example: 1 },
+      roleIds: { type: 'array', items: { type: 'integer' }, minItems: 1, example: [1, 2] },
     },
   },
 };

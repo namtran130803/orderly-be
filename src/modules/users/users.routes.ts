@@ -6,7 +6,6 @@ import { validate } from "@/middleware/validate";
 import * as controller from "@/modules/users/users.controller";
 import {
   assignRoleSchema,
-  userRoleDeleteParamsSchema,
 } from "@/modules/users/users.schema";
 import { PERMS } from "@/config/rbac/rbac-defs";
 
@@ -25,12 +24,6 @@ router.post(
   requirePermission(PERMS.users.role_assign),
   validate(assignRoleSchema),
   controller.assignRole,
-);
-router.delete(
-  "/:userId/roles/:roleId",
-  requirePermission(PERMS.users.role_remove),
-  validate(userRoleDeleteParamsSchema, "params"),
-  controller.removeRole,
 );
 
 export default router;

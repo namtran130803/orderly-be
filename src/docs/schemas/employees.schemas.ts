@@ -16,6 +16,21 @@ export const employeeSchemas = {
           createdAt: { type: 'string', format: 'date-time' },
         },
       },
+      roles: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            storeRole: {
+              type: 'object',
+              properties: {
+                id: { type: 'integer', example: 1 },
+                name: { type: 'string', example: 'Phục vụ' },
+              },
+            },
+          },
+        },
+      },
     },
   },
   CreateEmployeeRequest: {
