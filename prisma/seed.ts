@@ -1,9 +1,172 @@
-import { PrismaClient, StatusType, StoreUserRoleType } from "@prisma/client";
+import { PrismaClient, StatusType, StoreUserRoleType, type Prisma } from "@prisma/client";
 import bcrypt from "bcrypt";
 import { bootstrapRbac } from "../src/config/rbac/rbac-bootstrap";
-import { ROLE_DEFS } from "../src/config/rbac/rbac-defs";
+import { PERMS, ROLE_DEFS, STORE_OWNER_PERMS } from "../src/config/rbac/rbac-defs";
 
 const prisma = new PrismaClient();
+
+const SHIFT_LEAD_EXCLUDE = new Set<string>([
+  PERMS.stores.delete,
+  PERMS.store_roles.delete,
+  PERMS.employees.delete,
+  PERMS.expenses.delete,
+]);
+
+const PERMS_THU_NGAN: string[] = [
+  PERMS.categories.list,
+  PERMS.menu_items.list,
+  PERMS.tables.list,
+  PERMS.tables.update,
+  PERMS.orders.list,
+  PERMS.orders.create,
+  PERMS.orders.detail,
+  PERMS.orders.update,
+  PERMS.orders.advance,
+  PERMS.orders.revert,
+];
+
+const PERMS_PHA_CHE: string[] = [
+  PERMS.statuses.list,
+  PERMS.menu_items.list,
+  PERMS.orders.list,
+  PERMS.orders.detail,
+  PERMS.orders.update,
+  PERMS.orders.advance,
+  PERMS.orders.revert,
+];
+
+const PERMS_PHUC_VU: string[] = [
+  PERMS.areas.list,
+  PERMS.tables.list,
+  PERMS.tables.update,
+  PERMS.orders.list,
+  PERMS.orders.create,
+  PERMS.orders.detail,
+];
+
+async function createStoreRoleWithPermissions(
+  storeId: number,
+  name: string,
+  permissionCodes: string[],
+) {
+  const permissions = await prisma.permission.findMany({
+    where: { code: { in: permissionCodes } },
+  });
+  const found = new Set(permissions.map((p) => p.code));
+  const missing = permissionCodes.filter((c) => !found.has(c));
+  if (missing.length > 0) {
+    console.warn(`⚠️  Thiếu permission khi tạo vai trò "${name}":`, missing);
+  }
+
+  const storeRole = await prisma.storeRole.create({
+    data: { storeId, name },
+  });
+
+  if (permissions.length > 0) {
+    await prisma.storeRolePermission.createMany({
+      data: permissions.map((p) => ({
+        storeRoleId: storeRole.id,
+        permissionId: p.id,
+      })),
+    });
+  }
+
+  return storeRole;
+}
+
+async function addEmployeeToStore(
+  storeId: number,
+  passwordHash: string,
+  person: { name: string; phone: string },
+  storeRoleIds: number[],
+) {
+  const user = await prisma.user.create({
+    data: {
+      name: person.name,
+      phone: person.phone,
+      passwordHash,
+    },
+  });
+  const storeUser = await prisma.storeUser.create({
+    data: {
+      userId: user.id,
+      storeId,
+      role: StoreUserRoleType.employee,
+    },
+  });
+  if (storeRoleIds.length > 0) {
+    await prisma.storeUserRole.createMany({
+      data: storeRoleIds.map((storeRoleId) => ({
+        storeUserId: storeUser.id,
+        storeRoleId,
+      })),
+    });
+  }
+  return user;
+}
+
+/** Cửa hàng lớn: 4 vai trò, 6 nhân viên (một vai trò / gộp vai trò / gần trùng vai trò POS) */
+async function seedCoffeeShopStaff(storeId: number, passwordHash: string) {
+  console.log(`\n👥 Seed nhân sự & vai trò cửa hàng (coffee) #${storeId}...`);
+
+  const [thuNgan, phaChe, phucVu, quanLyCa] = await Promise.all([
+    createStoreRoleWithPermissions(storeId, "Thu ngân", PERMS_THU_NGAN),
+    createStoreRoleWithPermissions(storeId, "Pha chế", PERMS_PHA_CHE),
+    createStoreRoleWithPermissions(storeId, "Phục vụ", PERMS_PHUC_VU),
+    createStoreRoleWithPermissions(
+      storeId,
+      "Quản lý ca",
+      STORE_OWNER_PERMS.filter((c) => !SHIFT_LEAD_EXCLUDE.has(c)),
+    ),
+  ]);
+
+  await addEmployeeToStore(storeId, passwordHash, { name: "Nguyễn Thị Mai", phone: "0902345678" }, [
+    thuNgan.id,
+  ]);
+  await addEmployeeToStore(storeId, passwordHash, { name: "Trần Văn Hùng", phone: "0902345679" }, [
+    phaChe.id,
+  ]);
+  await addEmployeeToStore(storeId, passwordHash, { name: "Lê Minh Anh", phone: "0902345680" }, [
+    phucVu.id,
+    thuNgan.id,
+  ]);
+  await addEmployeeToStore(storeId, passwordHash, { name: "Phạm Quốc Bảo", phone: "0902345681" }, [
+    quanLyCa.id,
+  ]);
+  await addEmployeeToStore(storeId, passwordHash, { name: "Hoàng Thu Giang", phone: "0902345682" }, [
+    phaChe.id,
+    phucVu.id,
+  ]);
+  await addEmployeeToStore(storeId, passwordHash, { name: "Đỗ Văn Kiên", phone: "0902345683" }, [
+    thuNgan.id,
+  ]);
+
+  console.log(
+    `   ✔ 4 vai trò (Thu ngân, Pha chế, Phục vụ, Quản lý ca) + 6 nhân viên (SĐT 0902345678–0902345683, pass: password123).`,
+  );
+}
+
+/** Cửa hàng nhỏ: 2 vai trò, 2 nhân viên */
+async function seedTeaShopStaff(storeId: number, passwordHash: string) {
+  console.log(`\n👥 Seed nhân sự & vai trò cửa hàng (trà sữa) #${storeId}...`);
+
+  const [thuNgan, phaCheTra] = await Promise.all([
+    createStoreRoleWithPermissions(storeId, "Thu ngân", PERMS_THU_NGAN),
+    createStoreRoleWithPermissions(storeId, "Pha chế trà sữa", PERMS_PHA_CHE),
+  ]);
+
+  await addEmployeeToStore(storeId, passwordHash, { name: "Nguyễn Ngọc Lan", phone: "0903456790" }, [
+    thuNgan.id,
+  ]);
+  await addEmployeeToStore(storeId, passwordHash, { name: "Trịnh Anh Tú", phone: "0903456791" }, [
+    phaCheTra.id,
+    thuNgan.id,
+  ]);
+
+  console.log(
+    `   ✔ 2 vai trò + 2 nhân viên (0903456790, 0903456791 — Tú gồm pha chế + thu ngân).`,
+  );
+}
 
 async function main() {
   console.log("Bắt đầu seed dữ liệu mẫu...");
@@ -86,6 +249,44 @@ async function main() {
       role: StoreUserRoleType.owner,
     },
   });
+
+  await seedCoffeeShopStaff(store.id, passwordHash);
+
+  const ownerPhuc = await prisma.user.create({
+    data: {
+      name: "Võ Hồng Phúc",
+      phone: "0903456789",
+      passwordHash,
+    },
+  });
+  const storeOwnerGlobalRole = await prisma.role.findUnique({
+    where: { code: ROLE_DEFS.STORE_OWNER.code },
+  });
+  if (storeOwnerGlobalRole) {
+    await prisma.userRole.create({
+      data: { userId: ownerPhuc.id, roleId: storeOwnerGlobalRole.id },
+    });
+    console.log(`👑 Đã gán role hệ thống "${ROLE_DEFS.STORE_OWNER.name}" cho ${ownerPhuc.name}`);
+  }
+
+  const store2 = await prisma.store.create({
+    data: {
+      userId: ownerPhuc.id,
+      name: "Trà Sữa Bon Bon — Chi nhánh Lê Văn Sỹ",
+      address: "415 Lê Văn Sỹ, Phường 12, Quận 3, TP.HCM",
+    },
+  });
+  console.log(`🏪 Cửa hàng thứ hai: ${store2.name}`);
+
+  await prisma.storeUser.create({
+    data: {
+      userId: ownerPhuc.id,
+      storeId: store2.id,
+      role: StoreUserRoleType.owner,
+    },
+  });
+
+  await seedTeaShopStaff(store2.id, passwordHash);
 
   // Lặp qua tất cả các cửa hàng hiện có trong hệ thống để nạp danh mục, khu vực, món ăn, và phiếu nhập đồng nhất
   const allStores = await prisma.store.findMany();
@@ -241,7 +442,7 @@ async function main() {
       "Phí duy trì phần mềm POS",
     ];
 
-    const expenseEntries = [];
+    const expenseEntries: Prisma.ExpenseCreateManyInput[] = [];
     const now = new Date();
 
     const utcMidnightDaysAgo = (days: number) =>
@@ -475,7 +676,11 @@ async function main() {
   }
 
   console.log(
-    "\n✅ Seed dữ liệu mẫu hoàn tất! Bạn có thể dùng SĐT: 0901234567 / Pass: password123 để đăng nhập.",
+    "\n✅ Seed dữ liệu mẫu hoàn tất!\n" +
+      "   Đăng nhập admin / chủ CH1: 0901234567 — password123\n" +
+      "   Chủ CH2 (dashboard chủ cửa hàng): 0903456789 — password123\n" +
+      "   Nhân viên Orderly Coffee: 0902345678 … 0902345683 — password123\n" +
+      "   Nhân viên Bon Bon: 0903456790, 0903456791 — password123",
   );
 }
 
