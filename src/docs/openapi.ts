@@ -15,6 +15,10 @@ import { rolesSchemas } from "@/docs/schemas/roles.schemas";
 import { userRolesSchemas } from "@/docs/schemas/user-roles.schemas";
 import { employeeSchemas } from "@/docs/schemas/employees.schemas";
 import { storeRoleSchemas } from "@/docs/schemas/store-roles.schemas";
+import { scheduleSchemas } from "@/docs/schemas/schedule.schemas";
+import { attendanceSchemas } from "@/docs/schemas/attendance.schemas";
+import { leaveSchemas } from "@/docs/schemas/leave.schemas";
+import { payrollSchemas } from "@/docs/schemas/payroll.schemas";
 
 import { authPaths } from "@/docs/paths/auth.paths";
 import { storePaths } from "@/docs/paths/stores.paths";
@@ -31,6 +35,10 @@ import { rolesPaths } from "@/docs/paths/roles.paths";
 import { usersPaths } from "@/docs/paths/users.paths";
 import { employeePaths } from "@/docs/paths/employees.paths";
 import { storeRolePaths } from "@/docs/paths/store-roles.paths";
+import { schedulePaths } from "@/docs/paths/schedule.paths";
+import { attendancePaths } from "@/docs/paths/attendance.paths";
+import { leavePaths } from "@/docs/paths/leave.paths";
+import { payrollPaths } from "@/docs/paths/payroll.paths";
 
 const TAGS: Record<string, string> = {
   Auth: "Xác thực",
@@ -48,6 +56,10 @@ const TAGS: Record<string, string> = {
   System: "Hệ thống",
   Employees: "Nhân viên",
   "Store Roles": "Vai trò",
+  Schedule: "Lịch làm việc",
+  Attendance: "Chấm công",
+  Leave: "Đơn nghỉ",
+  Payroll: "Bảng lương",
 };
 
 const rawPaths = {
@@ -66,6 +78,10 @@ const rawPaths = {
   ...rolesPaths,
   ...employeePaths,
   ...storeRolePaths,
+  ...schedulePaths,
+  ...attendancePaths,
+  ...leavePaths,
+  ...payrollPaths,
 };
 
 for (const pathObj of Object.values(rawPaths)) {
@@ -116,6 +132,10 @@ Hầu hết endpoint yêu cầu JWT Bearer token.
     { name: TAGS["System"], description: "Mô-đun hệ thống" },
     { name: TAGS["Employees"], description: "Nhân viên cửa hàng" },
     { name: TAGS["Store Roles"], description: "Vai trò cấp cửa hàng" },
+    { name: TAGS["Schedule"], description: "Ngày làm mặc định & ngày đặc biệt" },
+    { name: TAGS["Attendance"], description: "QR chấm công & lưới tháng" },
+    { name: TAGS["Leave"], description: "Đơn nghỉ có lương / không lương" },
+    { name: TAGS["Payroll"], description: "Xem, khóa & mở khóa kỳ lương" },
   ],
   components: {
     securitySchemes: {
@@ -142,6 +162,10 @@ Hầu hết endpoint yêu cầu JWT Bearer token.
       ...userRolesSchemas,
       ...employeeSchemas,
       ...storeRoleSchemas,
+      ...scheduleSchemas,
+      ...attendanceSchemas,
+      ...leaveSchemas,
+      ...payrollSchemas,
     } as Record<string, any>,
   },
   security: [{ BearerAuth: [] }],

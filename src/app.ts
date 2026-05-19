@@ -15,6 +15,10 @@ import statusRoutes         from '@/modules/statuses/statuses.routes';
 import orderRoutes          from '@/modules/orders/orders.routes';
 import expenseRoutes        from '@/modules/expenses/expenses.routes';
 import dashboardRoutes      from '@/modules/dashboard/dashboard.routes';
+import scheduleRoutes       from '@/modules/schedule/schedule.routes';
+import attendanceRoutes     from '@/modules/attendance/attendance.routes';
+import leaveRoutes          from '@/modules/leave/leave.routes';
+import payrollRoutes        from '@/modules/payroll/payroll.routes';
 
 import systemRoutes         from '@/modules/system/system.routes';
 import roleRoutes           from '@/modules/roles/roles.routes';
@@ -73,6 +77,10 @@ storeRouter.use('/statuses',                statusRoutes);
 storeRouter.use('/orders',                  orderRoutes);
 storeRouter.use('/expenses',                expenseRoutes);
 storeRouter.use('/dashboard',               dashboardRoutes);
+storeRouter.use('/schedule',                scheduleRoutes);
+storeRouter.use('/attendance',              attendanceRoutes);
+storeRouter.use('/leave',                   leaveRoutes);
+storeRouter.use('/payroll',                 payrollRoutes);
 storeRouter.use('/roles',                   storeRoleRoutes);
 storeRouter.use('/employees',               employeeRoutes);
 

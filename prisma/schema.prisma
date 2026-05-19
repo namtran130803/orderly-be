@@ -13,6 +13,28 @@ enum StatusType {
   end
 }
 
+enum SalaryType {
+  MONTHLY
+  HOURLY
+}
+
+enum AttendanceStatus {
+  WORK
+  PAID_LEAVE
+  UNPAID_LEAVE
+}
+
+enum LeaveRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum OverrideType {
+  OFF
+  WORKING_DAY
+}
+
 model User {
   id           Int         @id @default(autoincrement())
   name         String
@@ -20,26 +42,32 @@ model User {
   passwordHash String      @map("password_hash")
   createdAt    DateTime    @default(now()) @map("created_at")
   stores       Store[]
-  userRoles    UserRole[]
-  storeUsers   StoreUser[]
+  userRoles           UserRole[]
+  storeUsers          StoreUser[]
+  attendanceEditLogs  AttendanceEditLog[] @relation("AttendanceEditLogEditor")
+  reviewedLeaveReqs   LeaveRequest[]      @relation("LeaveReviewer")
 
   @@map("users")
 }
 
 model Store {
-  id         Int         @id @default(autoincrement())
-  userId     Int         @map("user_id")
-  name       String
-  address    String?
-  createdAt  DateTime    @default(now()) @map("created_at")
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  categories Category[]
-  areas      Area[]
-  statuses   Status[]
-  orders     Order[]
-  expenses   Expense[]
-  storeUsers StoreUser[]
-  storeRoles StoreRole[]
+  id               Int                @id @default(autoincrement())
+  userId           Int                @map("user_id")
+  name             String
+  address          String?
+  createdAt        DateTime           @default(now()) @map("created_at")
+  defaultWorkDays  Int[]              @default([1, 2, 3, 4, 5]) @map("default_work_days")
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categories       Category[]
+  areas            Area[]
+  statuses         Status[]
+  orders           Order[]
+  expenses         Expense[]
+  storeUsers       StoreUser[]
+  storeRoles       StoreRole[]
+  scheduleOverrides ScheduleOverride[]
+  leaveRequests    LeaveRequest[]
+  payrollSnapshots PayrollSnapshot[]
 
   @@map("stores")
 }
@@ -198,17 +226,101 @@ enum StoreUserRoleType {
 }
 
 model StoreUser {
-  id        Int               @id @default(autoincrement())
-  userId    Int               @map("user_id")
-  storeId   Int               @map("store_id")
-  role      StoreUserRoleType @default(employee)
-  createdAt DateTime          @default(now()) @map("created_at")
-  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  store     Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  roles     StoreUserRole[]
+  id           Int               @id @default(autoincrement())
+  userId       Int               @map("user_id")
+  storeId      Int               @map("store_id")
+  role         StoreUserRoleType @default(employee)
+  salaryType   SalaryType        @default(MONTHLY) @map("salary_type")
+  baseSalary   Int               @default(0) @map("base_salary")
+  workDays     Int[]             @default([]) @map("work_days")
+  hourlyRate   Int?              @map("hourly_rate")
+  createdAt    DateTime          @default(now()) @map("created_at")
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  store        Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  roles        StoreUserRole[]
+  attendances  Attendance[]
+  leaveRequests LeaveRequest[]
+  payrollSnapshots PayrollSnapshot[]
 
   @@unique([userId, storeId])
   @@map("store_users")
+}
+
+model ScheduleOverride {
+  id      Int          @id @default(autoincrement())
+  storeId Int          @map("store_id")
+  date    DateTime     @db.Date
+  type    OverrideType
+  store   Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, date])
+  @@map("schedule_overrides")
+}
+
+model Attendance {
+  id          Int              @id @default(autoincrement())
+  employeeId  Int              @map("employee_id")
+  date        DateTime         @db.Date
+  checkIn     DateTime?        @map("check_in")
+  checkOut    DateTime?        @map("check_out")
+  workMinutes Int?             @map("work_minutes")
+  status      AttendanceStatus
+  note        String?
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  employee    StoreUser        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  editLogs    AttendanceEditLog[]
+
+  @@unique([employeeId, date])
+  @@map("attendances")
+}
+
+model AttendanceEditLog {
+  id           Int        @id @default(autoincrement())
+  attendanceId Int        @map("attendance_id")
+  before       Json
+  after        Json
+  editedBy     Int        @map("edited_by")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  attendance   Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  editor       User       @relation("AttendanceEditLogEditor", fields: [editedBy], references: [id], onDelete: Cascade)
+
+  @@map("attendance_edit_logs")
+}
+
+model LeaveRequest {
+  id         Int                @id @default(autoincrement())
+  storeId    Int                @map("store_id")
+  employeeId Int                @map("employee_id")
+  fromDate   DateTime           @map("from_date") @db.Date
+  toDate     DateTime           @map("to_date") @db.Date
+  isPaid     Boolean            @map("is_paid")
+  reason     String?
+  status     LeaveRequestStatus @default(PENDING)
+  reviewedBy Int?               @map("reviewed_by")
+  createdAt  DateTime           @default(now()) @map("created_at")
+  store      Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  employee   StoreUser          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewer   User?              @relation("LeaveReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@map("leave_requests")
+}
+
+model PayrollSnapshot {
+  id           Int       @id @default(autoincrement())
+  storeId      Int       @map("store_id")
+  employeeId   Int       @map("employee_id")
+  month        Int
+  year         Int
+  standardDays Int       @map("standard_days")
+  paidDays     Int       @map("paid_days")
+  salary       Int
+  lockedAt     DateTime  @default(now()) @map("locked_at")
+  store        Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  employee     StoreUser @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, employeeId, month, year])
+  @@map("payroll_snapshots")
 }
 
 model StoreRole {

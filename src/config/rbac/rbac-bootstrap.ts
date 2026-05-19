@@ -4,6 +4,8 @@ import { MODULE_DEFS, STORE_OWNER_PERMS, ROLE_DEFS } from '@/config/rbac/rbac-de
 export async function bootstrapRbac() {
   await syncPermissions();
   await syncSystemRoles();
+  await ensureAdminRolePermissions();
+  await ensureStoreOwnerRolePermissions();
 }
 
 // Chỉ tạo permission nếu chưa có trong DB
@@ -56,4 +58,50 @@ async function syncSystemRoles() {
       });
     }
   }
+}
+
+/** Bổ sung permission mới cho admin (toàn bộ). */
+async function ensureAdminRolePermissions() {
+  const role = await prisma.role.findUnique({
+    where: { code: ROLE_DEFS.ADMIN.code },
+  });
+  if (!role) return;
+
+  const all = await prisma.permission.findMany();
+  const existing = await prisma.rolePermission.findMany({
+    where: { roleId: role.id },
+    select: { permissionId: true },
+  });
+  const have = new Set(existing.map((e) => e.permissionId));
+  const toAdd = all.filter((p) => !have.has(p.id));
+  if (toAdd.length === 0) return;
+
+  await prisma.rolePermission.createMany({
+    data: toAdd.map((p) => ({ roleId: role.id, permissionId: p.id })),
+    skipDuplicates: true,
+  });
+}
+
+/** Bổ sung permission mới cho chủ cửa hàng theo STORE_OWNER_PERMS. */
+async function ensureStoreOwnerRolePermissions() {
+  const role = await prisma.role.findUnique({
+    where: { code: ROLE_DEFS.STORE_OWNER.code },
+  });
+  if (!role) return;
+
+  const perms = await prisma.permission.findMany({
+    where: { code: { in: [...STORE_OWNER_PERMS] } },
+  });
+  const existing = await prisma.rolePermission.findMany({
+    where: { roleId: role.id },
+    select: { permissionId: true },
+  });
+  const have = new Set(existing.map((e) => e.permissionId));
+  const toAdd = perms.filter((p) => !have.has(p.id));
+  if (toAdd.length === 0) return;
+
+  await prisma.rolePermission.createMany({
+    data: toAdd.map((p) => ({ roleId: role.id, permissionId: p.id })),
+    skipDuplicates: true,
+  });
 }

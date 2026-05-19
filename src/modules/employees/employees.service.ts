@@ -1,7 +1,7 @@
 import { prisma } from '@/config/prisma';
 import { StoreUserRoleType } from '@prisma/client';
 import { ApiError } from '@/lib/response';
-import type { CreateEmployeeDto, AssignRolesDto } from '@/modules/employees/employees.schema';
+import type { CreateEmployeeDto, AssignRolesDto, UpdateSalaryDto } from '@/modules/employees/employees.schema';
 
 export async function listEmployees(storeId: number) {
   return prisma.storeUser.findMany({
@@ -53,6 +53,10 @@ export async function createEmployee(storeId: number, userPermissions: string[],
         userId: user.id,
         storeId,
         role: StoreUserRoleType.employee,
+        salaryType: dto.salaryType,
+        baseSalary: dto.baseSalary,
+        hourlyRate: dto.hourlyRate ?? null,
+        workDays: dto.workDays ?? [],
       },
     });
 
@@ -180,6 +184,29 @@ export async function assignRoles(
     });
 
     return result!;
+  });
+}
+
+export async function updateSalary(storeId: number, employeeId: number, dto: UpdateSalaryDto) {
+  const su = await prisma.storeUser.findFirst({
+    where: { id: employeeId, storeId, role: StoreUserRoleType.employee },
+  });
+  if (!su) throw ApiError.notFound('Nhân viên');
+
+  return prisma.storeUser.update({
+    where: { id: employeeId },
+    data: {
+      salaryType: dto.salaryType,
+      baseSalary: dto.baseSalary,
+      hourlyRate: dto.hourlyRate ?? null,
+      workDays: dto.workDays ?? [],
+    },
+    include: {
+      user: { select: { id: true, name: true, phone: true, createdAt: true } },
+      roles: {
+        select: { storeRole: { select: { id: true, name: true } } },
+      },
+    },
   });
 }
 

@@ -1,7 +1,17 @@
-import { PrismaClient, StatusType, StoreUserRoleType, type Prisma } from "@prisma/client";
+import {
+  PrismaClient,
+  StatusType,
+  StoreUserRoleType,
+  AttendanceStatus,
+  LeaveRequestStatus,
+  OverrideType,
+  SalaryType,
+  type Prisma,
+} from "@prisma/client";
 import bcrypt from "bcrypt";
 import { bootstrapRbac } from "../src/config/rbac/rbac-bootstrap";
 import { PERMS, ROLE_DEFS, STORE_OWNER_PERMS } from "../src/config/rbac/rbac-defs";
+import { lockPayroll } from "../src/modules/payroll/payroll.service";
 
 const prisma = new PrismaClient();
 
@@ -23,6 +33,8 @@ const PERMS_THU_NGAN: string[] = [
   PERMS.orders.update,
   PERMS.orders.advance,
   PERMS.orders.revert,
+  PERMS.attendance.scan,
+  PERMS.leave.create,
 ];
 
 const PERMS_PHA_CHE: string[] = [
@@ -33,6 +45,8 @@ const PERMS_PHA_CHE: string[] = [
   PERMS.orders.update,
   PERMS.orders.advance,
   PERMS.orders.revert,
+  PERMS.attendance.scan,
+  PERMS.leave.create,
 ];
 
 const PERMS_PHUC_VU: string[] = [
@@ -42,6 +56,8 @@ const PERMS_PHUC_VU: string[] = [
   PERMS.orders.list,
   PERMS.orders.create,
   PERMS.orders.detail,
+  PERMS.attendance.scan,
+  PERMS.leave.create,
 ];
 
 async function createStoreRoleWithPermissions(
@@ -168,6 +184,363 @@ async function seedTeaShopStaff(storeId: number, passwordHash: string) {
   );
 }
 
+/** Ngày làm việc (date-only) theo VN — map tới cột `DATE` trong DB. */
+function vnDateOnly(y: number, month: number, day: number): Date {
+  return new Date(
+    `${y}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T00:00:00.000+07:00`,
+  );
+}
+
+function vnDateTime(
+  y: number,
+  month: number,
+  day: number,
+  h: number,
+  min: number,
+): Date {
+  return new Date(
+    `${y}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}:00+07:00`,
+  );
+}
+
+function daysInCalendarMonth(y: number, month: number): number {
+  return new Date(y, month, 0).getDate();
+}
+
+/** Tháng trước (chuẩn lịch). */
+function prevMonthYear(y: number, month: number): { py: number; pm: number } {
+  if (month <= 1) return { py: y - 1, pm: 12 };
+  return { py: y, pm: month - 1 };
+}
+
+/** Tháng sau. */
+function nextMonthYear(y: number, month: number): { ny: number; nm: number } {
+  if (month >= 12) return { ny: y + 1, nm: 1 };
+  return { ny: y, nm: month + 1 };
+}
+
+/**
+ * Dữ liệu HRM để test: lịch cửa hàng, chấm công (WORK / nghỉ / vắng), đơn nghỉ (pending / duyệt / từ chối),
+ * lương theo giờ & theo tháng, khóa bảng lương tháng trước.
+ */
+async function seedHrDemoData(options: {
+  storeId: number;
+  reviewerId: number;
+  rich: boolean;
+}): Promise<void> {
+  const { storeId, reviewerId, rich } = options;
+
+  const tag = rich ? "Orderly Coffee (đủ)" : "Bon Bon (tối thiểu)";
+  console.log(`\n📅 Seed chấm công / lịch / nghỉ / lương — ${tag} #${storeId}...`);
+
+  const now = new Date();
+  const curY = now.getFullYear();
+  const curM = now.getMonth() + 1;
+  const { py: prevY, pm: prevM } = prevMonthYear(curY, curM);
+  const { ny: nextY, nm: nextM } = nextMonthYear(curY, curM);
+
+  await prisma.store.update({
+    where: { id: storeId },
+    data: { defaultWorkDays: [1, 2, 3, 4, 5, 6] },
+  });
+
+  const firstSun = (y: number, m: number): number | null => {
+    const last = daysInCalendarMonth(y, m);
+    for (let d = 1; d <= last; d++) {
+      const dt = new Date(y, m - 1, d);
+      if (dt.getMonth() !== m - 1) break;
+      if (dt.getDay() === 0) return d;
+    }
+    return null;
+  };
+  const firstWed = (y: number, m: number): number | null => {
+    const last = daysInCalendarMonth(y, m);
+    for (let d = 1; d <= last; d++) {
+      const dt = new Date(y, m - 1, d);
+      if (dt.getMonth() !== m - 1) break;
+      if (dt.getDay() === 3) return d;
+    }
+    return null;
+  };
+
+  const sun = firstSun(curY, curM);
+  const wed = firstWed(curY, curM);
+  if (sun) {
+    await prisma.scheduleOverride.create({
+      data: {
+        storeId,
+        date: vnDateOnly(curY, curM, sun),
+        type: OverrideType.WORKING_DAY,
+      },
+    });
+  }
+  if (wed) {
+    await prisma.scheduleOverride.create({
+      data: {
+        storeId,
+        date: vnDateOnly(curY, curM, wed),
+        type: OverrideType.OFF,
+      },
+    });
+  }
+
+  const staff = await prisma.storeUser.findMany({
+    where: { storeId, role: StoreUserRoleType.employee },
+    include: { user: true },
+    orderBy: { id: "asc" },
+  });
+
+  if (staff.length === 0) {
+    console.log("   ⚠️  Không có nhân viên — bỏ qua seed HRM.");
+    return;
+  }
+
+  if (rich && staff.length >= 6) {
+    const [su0, su1, su2, su3, su4, su5] = staff;
+    await prisma.storeUser.update({
+      where: { id: su0.id },
+      data: {
+        salaryType: SalaryType.MONTHLY,
+        baseSalary: 8_000_000,
+        workDays: [],
+        hourlyRate: null,
+      },
+    });
+    await prisma.storeUser.update({
+      where: { id: su1.id },
+      data: {
+        salaryType: SalaryType.HOURLY,
+        baseSalary: 0,
+        workDays: [1, 2, 3, 4, 5],
+        hourlyRate: 55_000,
+      },
+    });
+    await prisma.storeUser.update({
+      where: { id: su2.id },
+      data: {
+        salaryType: SalaryType.MONTHLY,
+        baseSalary: 7_000_000,
+        workDays: [],
+        hourlyRate: null,
+      },
+    });
+    await prisma.storeUser.update({
+      where: { id: su3.id },
+      data: {
+        salaryType: SalaryType.MONTHLY,
+        baseSalary: 12_000_000,
+        workDays: [],
+        hourlyRate: null,
+      },
+    });
+    await prisma.storeUser.update({
+      where: { id: su4.id },
+      data: {
+        salaryType: SalaryType.MONTHLY,
+        baseSalary: 7_500_000,
+        workDays: [1, 2, 3, 4, 5],
+        hourlyRate: null,
+      },
+    });
+    await prisma.storeUser.update({
+      where: { id: su5.id },
+      data: {
+        salaryType: SalaryType.MONTHLY,
+        baseSalary: 8_500_000,
+        workDays: [],
+        hourlyRate: null,
+      },
+    });
+  } else {
+    for (let i = 0; i < staff.length; i++) {
+      const hourly = i === 1;
+      await prisma.storeUser.update({
+        where: { id: staff[i].id },
+        data: hourly
+          ? {
+              salaryType: SalaryType.HOURLY,
+              hourlyRate: 50_000,
+              baseSalary: 0,
+              workDays: [1, 2, 3, 4, 5, 6],
+            }
+          : {
+              salaryType: SalaryType.MONTHLY,
+              baseSalary: 7_000_000 + i * 200_000,
+              workDays: [],
+              hourlyRate: null,
+            },
+      });
+    }
+  }
+
+  const attendRows: Prisma.AttendanceCreateManyInput[] = [];
+
+  const addWork = (employeeId: number, y: number, m: number, day: number, mins: number) => {
+    const date = vnDateOnly(y, m, day);
+    const cin = vnDateTime(y, m, day, 8, 0);
+    const cout = vnDateTime(y, m, day, 17, 0);
+    attendRows.push({
+      employeeId,
+      date,
+      checkIn: cin,
+      checkOut: cout,
+      workMinutes: mins,
+      status: AttendanceStatus.WORK,
+    });
+  };
+
+  if (rich && staff.length >= 6) {
+    const [su0, su1, su2, su3, su4, su5] = staff;
+    const dim = daysInCalendarMonth(curY, curM);
+    const paidLeaveDay = Math.min(dim, 14);
+    for (let d = 1; d <= Math.min(dim, 20); d++) {
+      const dt = new Date(curY, curM - 1, d);
+      if (dt.getDay() === 0 || d === wed || d === paidLeaveDay) continue;
+      addWork(su0.id, curY, curM, d, 480);
+      if (d % 2 === 0 && d <= 6) addWork(su1.id, curY, curM, d, 420);
+    }
+
+    attendRows.push({
+      employeeId: su0.id,
+      date: vnDateOnly(curY, curM, paidLeaveDay),
+      checkIn: null,
+      checkOut: null,
+      workMinutes: null,
+      status: AttendanceStatus.PAID_LEAVE,
+    });
+
+    attendRows.push({
+      employeeId: su1.id,
+      date: vnDateOnly(curY, curM, 7),
+      checkIn: null,
+      checkOut: null,
+      workMinutes: null,
+      status: AttendanceStatus.PAID_LEAVE,
+    });
+    attendRows.push({
+      employeeId: su1.id,
+      date: vnDateOnly(curY, curM, 8),
+      checkIn: null,
+      checkOut: null,
+      workMinutes: null,
+      status: AttendanceStatus.PAID_LEAVE,
+    });
+
+    attendRows.push({
+      employeeId: su2.id,
+      date: vnDateOnly(curY, curM, Math.min(dim, 16)),
+      checkIn: null,
+      checkOut: null,
+      workMinutes: null,
+      status: AttendanceStatus.UNPAID_LEAVE,
+    });
+
+    attendRows.push({
+      employeeId: su4.id,
+      date: vnDateOnly(curY, curM, Math.min(dim, 11)),
+      checkIn: null,
+      checkOut: null,
+      workMinutes: null,
+      status: AttendanceStatus.PAID_LEAVE,
+    });
+    attendRows.push({
+      employeeId: su4.id,
+      date: vnDateOnly(curY, curM, Math.min(dim, 12)),
+      checkIn: null,
+      checkOut: null,
+      workMinutes: null,
+      status: AttendanceStatus.PAID_LEAVE,
+    });
+
+    const dmPrev = daysInCalendarMonth(prevY, prevM);
+    for (let d = 1; d <= dmPrev; d++) {
+      const dt = new Date(prevY, prevM - 1, d);
+      if (dt.getDay() === 0) continue;
+      addWork(su0.id, prevY, prevM, d, 480);
+      if (d % 3 !== 0) addWork(su1.id, prevY, prevM, d, 360);
+      if (d % 2 === 0) addWork(su2.id, prevY, prevM, d, 450);
+    }
+    // su5: vắng một số ngày làm — không tạo dòng cho ngày 3,4,5 (nếu là ngày làm Tu-Sa)
+    for (let d = 6; d <= Math.min(dmPrev, 25); d++) {
+      const dt = new Date(prevY, prevM - 1, d);
+      if (dt.getDay() === 0) continue;
+      addWork(su5.id, prevY, prevM, d, 480);
+    }
+  } else {
+    const a = staff[0];
+    const b = staff[1] ?? staff[0];
+    const d1 = Math.min(10, daysInCalendarMonth(curY, curM));
+    const d2 = Math.min(12, daysInCalendarMonth(curY, curM));
+    addWork(a.id, curY, curM, d1, 500);
+    addWork(b.id, curY, curM, d2, 400);
+    addWork(a.id, prevY, prevM, Math.min(15, daysInCalendarMonth(prevY, prevM)), 480);
+  }
+
+  await prisma.attendance.createMany({ data: attendRows });
+
+  if (rich && staff.length >= 6) {
+    const [su0, su1, su2] = staff;
+    await prisma.leaveRequest.createMany({
+      data: [
+        {
+          storeId,
+          employeeId: su0.id,
+          fromDate: vnDateOnly(nextY, nextM, 2),
+          toDate: vnDateOnly(nextY, nextM, 4),
+          isPaid: true,
+          reason: "[SEED] Đơn chờ duyệt — nghỉ có lương",
+          status: LeaveRequestStatus.PENDING,
+        },
+        {
+          storeId,
+          employeeId: su2.id,
+          fromDate: vnDateOnly(curY, curM, 3),
+          toDate: vnDateOnly(curY, curM, 3),
+          isPaid: false,
+          reason: "[SEED] Đơn bị từ chối",
+          status: LeaveRequestStatus.REJECTED,
+          reviewedBy: reviewerId,
+        },
+        {
+          storeId,
+          employeeId: su1.id,
+          fromDate: vnDateOnly(curY, curM, 7),
+          toDate: vnDateOnly(curY, curM, 8),
+          isPaid: true,
+          reason: "[SEED] Đơn đã duyệt (đã sync vào chấm công)",
+          status: LeaveRequestStatus.APPROVED,
+          reviewedBy: reviewerId,
+        },
+      ],
+    });
+  } else if (staff.length >= 1) {
+    await prisma.leaveRequest.create({
+      data: {
+        storeId,
+        employeeId: staff[0].id,
+        fromDate: vnDateOnly(nextY, nextM, 5),
+        toDate: vnDateOnly(nextY, nextM, 6),
+        isPaid: false,
+        reason: "[SEED] Đơn nghỉ chờ duyệt",
+        status: LeaveRequestStatus.PENDING,
+      },
+    });
+  }
+
+  if (rich) {
+    try {
+      await lockPayroll(storeId, { month: prevM, year: prevY });
+      console.log(
+        `   ✔ Đã khóa bảng lương tháng ${prevM}/${prevY} (có thể test “Mở khóa” trên UI).`,
+      );
+    } catch (e) {
+      console.warn("   ⚠️  Không khóa được lương (bỏ qua):", (e as Error).message);
+    }
+  }
+
+  console.log(`   ✔ HRM: lịch, chấm công, đơn nghỉ${rich ? ", payroll lock tháng trước" : ""}.`);
+}
+
 async function main() {
   console.log("Bắt đầu seed dữ liệu mẫu...");
 
@@ -192,6 +565,11 @@ async function main() {
     await prisma.userRole.deleteMany();
     await prisma.rolePermission.deleteMany();
     await prisma.storeUserRole.deleteMany();
+    await prisma.attendanceEditLog.deleteMany();
+    await prisma.attendance.deleteMany();
+    await prisma.payrollSnapshot.deleteMany();
+    await prisma.leaveRequest.deleteMany();
+    await prisma.scheduleOverride.deleteMany();
     await prisma.orderItem.deleteMany();
     await prisma.order.deleteMany();
     await prisma.expense.deleteMany();
@@ -252,6 +630,12 @@ async function main() {
 
   await seedCoffeeShopStaff(store.id, passwordHash);
 
+  await seedHrDemoData({
+    storeId: store.id,
+    reviewerId: user.id,
+    rich: true,
+  });
+
   const ownerPhuc = await prisma.user.create({
     data: {
       name: "Võ Hồng Phúc",
@@ -287,6 +671,12 @@ async function main() {
   });
 
   await seedTeaShopStaff(store2.id, passwordHash);
+
+  await seedHrDemoData({
+    storeId: store2.id,
+    reviewerId: ownerPhuc.id,
+    rich: false,
+  });
 
   // Lặp qua tất cả các cửa hàng hiện có trong hệ thống để nạp danh mục, khu vực, món ăn, và phiếu nhập đồng nhất
   const allStores = await prisma.store.findMany();
@@ -680,7 +1070,10 @@ async function main() {
       "   Đăng nhập admin / chủ CH1: 0901234567 — password123\n" +
       "   Chủ CH2 (dashboard chủ cửa hàng): 0903456789 — password123\n" +
       "   Nhân viên Orderly Coffee: 0902345678 … 0902345683 — password123\n" +
-      "   Nhân viên Bon Bon: 0903456790, 0903456791 — password123",
+      "   Nhân viên Bon Bon: 0903456790, 0903456791 — password123\n" +
+      "\n   HRM: CH1 — lịch T2–T7 + OFF (thứ 4 đầu tháng) + CN bù ca (nếu có); chấm công đủ loại;\n" +
+      "   đơn nghỉ PENDING / APPROVED / REJECTED; lương tháng trước đã KHÓA (mở khóa trên app để test).\n" +
+      "   CH2 — dữ liệu tối thiểu. Thu ngân / Pha chế / Phục vụ: quét QR + tạo đơn nghỉ.",
   );
 }
 

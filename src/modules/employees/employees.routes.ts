@@ -6,6 +6,7 @@ import * as controller from "@/modules/employees/employees.controller";
 import {
   createEmployeeSchema,
   assignRolesSchema,
+  updateSalarySchema,
 } from "@/modules/employees/employees.schema";
 import { PERMS } from "@/config/rbac/rbac-defs";
 import { requireStoreAccess } from "@/middleware/requireStoreAccess";
@@ -31,6 +32,13 @@ router.get(
   "/:employeeId/roles",
   requirePermission(PERMS.employees.list),
   controller.getRoles,
+);
+
+router.patch(
+  "/:employeeId/salary",
+  requirePermission(PERMS.employees.update),
+  validate(updateSalarySchema),
+  controller.updateSalary,
 );
 
 export default router;

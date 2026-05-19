@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import * as service from '@/modules/employees/employees.service';
 import { sendSuccess } from '@/lib/response';
-import type { CreateEmployeeDto, AssignRolesDto } from '@/modules/employees/employees.schema';
+import type { CreateEmployeeDto, AssignRolesDto, UpdateSalaryDto } from '@/modules/employees/employees.schema';
 
 export async function list(req: Request, res: Response, next: NextFunction) {
   try {
@@ -33,6 +33,18 @@ export async function assignRoles(req: Request, res: Response, next: NextFunctio
     const userPermissions = req.user!.permissions;
     const result = await service.assignRoles(storeId, employeeId, userPermissions, dto);
     sendSuccess(res, result, 'Gán thành công');
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateSalary(req: Request, res: Response, next: NextFunction) {
+  try {
+    const storeId = Number(req.params.storeId);
+    const employeeId = Number(req.params.employeeId);
+    const dto = req.body as UpdateSalaryDto;
+    const result = await service.updateSalary(storeId, employeeId, dto);
+    sendSuccess(res, result, 'Đã cập nhật lương');
   } catch (err) {
     next(err);
   }

@@ -95,6 +95,24 @@ export const PERMS = {
   dashboard: {
     stats: "dashboard.stats",
   },
+  attendance: {
+    view: "attendance.view",
+    manage: "attendance.manage",
+    scan: "attendance.scan",
+  },
+  schedule: {
+    view: "schedule.view",
+    manage: "schedule.manage",
+  },
+  leave: {
+    view: "leave.view",
+    create: "leave.create",
+    manage: "leave.manage",
+  },
+  payroll: {
+    view: "payroll.view",
+    lock: "payroll.lock",
+  },
 } as const;
 
 export const MODULE_DEFS: ModuleDef[] = [
@@ -235,6 +253,40 @@ export const MODULE_DEFS: ModuleDef[] = [
     name: "Thống kê",
     apis: [{ code: PERMS.dashboard.stats, name: "Xem thống kê" }],
   },
+  {
+    code: "attendance",
+    name: "Chấm công",
+    apis: [
+      { code: PERMS.attendance.view, name: "Xem" },
+      { code: PERMS.attendance.manage, name: "Quản lý" },
+      { code: PERMS.attendance.scan, name: "Quét / QR" },
+    ],
+  },
+  {
+    code: "schedule",
+    name: "Lịch làm việc",
+    apis: [
+      { code: PERMS.schedule.view, name: "Xem" },
+      { code: PERMS.schedule.manage, name: "Quản lý" },
+    ],
+  },
+  {
+    code: "leave",
+    name: "Nghỉ phép",
+    apis: [
+      { code: PERMS.leave.view, name: "Xem" },
+      { code: PERMS.leave.create, name: "Tạo đơn" },
+      { code: PERMS.leave.manage, name: "Duyệt / từ chối" },
+    ],
+  },
+  {
+    code: "payroll",
+    name: "Bảng lương",
+    apis: [
+      { code: PERMS.payroll.view, name: "Xem" },
+      { code: PERMS.payroll.lock, name: "Khóa / mở" },
+    ],
+  },
 ];
 
 // Permission codes dành cho chủ cửa hàng — chỉ trong phạm vi cửa hàng
@@ -298,6 +350,17 @@ export const STORE_OWNER_PERMS: string[] = [
   PERMS.expenses.delete,
   // dashboard
   PERMS.dashboard.stats,
+  // attendance / schedule / leave / payroll
+  PERMS.attendance.view,
+  PERMS.attendance.manage,
+  PERMS.attendance.scan,
+  PERMS.schedule.view,
+  PERMS.schedule.manage,
+  PERMS.leave.view,
+  PERMS.leave.create,
+  PERMS.leave.manage,
+  PERMS.payroll.view,
+  PERMS.payroll.lock,
 ];
 
 export const ROLE_DEFS = {

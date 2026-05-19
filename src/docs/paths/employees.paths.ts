@@ -39,7 +39,27 @@ export const employeePaths: PathsObject = {
         content: {
           'application/json': {
             schema: { $ref: '#/components/schemas/CreateEmployeeRequest' },
-            examples: { default: { value: { phone: '0901234567', roleIds: [1, 2] } } },
+            examples: {
+              monthly: {
+                value: {
+                  phone: '0901234567',
+                  roleIds: [1, 2],
+                  salaryType: 'MONTHLY',
+                  baseSalary: 5_000_000,
+                  workDays: [],
+                },
+              },
+              hourly: {
+                value: {
+                  phone: '0902345678',
+                  roleIds: [1],
+                  salaryType: 'HOURLY',
+                  baseSalary: 0,
+                  hourlyRate: 30_000,
+                  workDays: [1, 2, 3, 4, 5, 6],
+                },
+              },
+            },
           },
         },
       },
@@ -88,6 +108,38 @@ export const employeePaths: PathsObject = {
       },
       responses: {
         200: successResponse('Employee', 'Gán thành công'),
+        ...errorResponses(400, 401, 403, 404),
+      },
+    },
+  },
+
+  '/api/stores/{storeId}/employees/{employeeId}/salary': {
+    patch: {
+      tags: ['Nhân viên'],
+      summary: 'Cập nhật lương & lịch làm',
+      description:
+        'Chỉ ảnh hưởng kỳ lương chưa chốt. Không sửa PayrollSnapshot đã khóa.',
+      parameters: [storeIdParam, employeeIdParam],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/UpdateSalaryRequest' },
+            examples: {
+              monthly: {
+                value: {
+                  salaryType: 'MONTHLY',
+                  baseSalary: 5_000_000,
+                  hourlyRate: null,
+                  workDays: [],
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        200: successResponse('Employee', 'Đã cập nhật lương'),
         ...errorResponses(400, 401, 403, 404),
       },
     },
