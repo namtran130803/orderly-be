@@ -132,7 +132,10 @@ Hầu hết endpoint yêu cầu JWT Bearer token.
     { name: TAGS["System"], description: "Mô-đun hệ thống" },
     { name: TAGS["Employees"], description: "Nhân viên cửa hàng" },
     { name: TAGS["Store Roles"], description: "Vai trò cấp cửa hàng" },
-    { name: TAGS["Schedule"], description: "Ngày làm mặc định & ngày đặc biệt" },
+    {
+      name: TAGS["Schedule"],
+      description: "Ngày làm mặc định & ngày đặc biệt",
+    },
     { name: TAGS["Attendance"], description: "QR chấm công & lưới tháng" },
     { name: TAGS["Leave"], description: "Đơn nghỉ có lương / không lương" },
     { name: TAGS["Payroll"], description: "Xem, khóa & mở khóa kỳ lương" },
