@@ -5,10 +5,16 @@ export const storeParamsSchema = z.object({
   storeId: z.coerce.number().int().positive(),
 });
 
-export const attendanceQuerySchema = z.object({
+export const monthYearQuerySchema = z.object({
   month: z.coerce.number().int().min(1).max(12),
   year: z.coerce.number().int().min(2000).max(2100),
-  employeeId: z.coerce.number().int().positive().optional(),
+});
+
+export const attendanceQuerySchema = monthYearQuerySchema;
+
+export const employeeAttendanceParamsSchema = z.object({
+  storeId: z.coerce.number().int().positive(),
+  employeeId: z.coerce.number().int().positive(),
 });
 
 export const scanBodySchema = z.object({
@@ -36,6 +42,7 @@ export const patchAttendanceSchema = z.object({
   workMinutes: z.number().int().min(0).optional().nullable(),
 });
 
+export type MonthYearQueryDto = z.infer<typeof monthYearQuerySchema>;
 export type AttendanceQueryDto = z.infer<typeof attendanceQuerySchema>;
 export type ScanBodyDto = z.infer<typeof scanBodySchema>;
 export type CreateManualAttendanceDto = z.infer<typeof createManualAttendanceSchema>;

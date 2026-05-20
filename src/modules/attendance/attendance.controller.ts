@@ -28,7 +28,33 @@ export async function scan(req: Request, res: Response, next: NextFunction) {
 
 export async function list(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await service.listAttendance(req.store!.id, req.query as any);
+    const { month, year } = req.query as unknown as { month: number; year: number };
+    const data = await service.listAttendance(req.store!.id, year, month);
+    sendSuccess(res, data);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function employeeDetail(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { month, year } = req.query as unknown as { month: number; year: number };
+    const data = await service.getEmployeeAttendance(
+      req.store!.id,
+      Number(req.params.employeeId),
+      year,
+      month,
+    );
+    sendSuccess(res, data);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function myDetail(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { month, year } = req.query as unknown as { month: number; year: number };
+    const data = await service.getMyAttendance(req.store!.id, req.user!.id, year, month);
     sendSuccess(res, data);
   } catch (err) {
     next(err);

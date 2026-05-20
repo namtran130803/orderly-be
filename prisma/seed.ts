@@ -10,7 +10,11 @@ import {
 } from "@prisma/client";
 import bcrypt from "bcrypt";
 import { bootstrapRbac } from "../src/config/rbac/rbac-bootstrap";
-import { PERMS, ROLE_DEFS, STORE_OWNER_PERMS } from "../src/config/rbac/rbac-defs";
+import {
+  PERMS,
+  ROLE_DEFS,
+  STORE_OWNER_PERMS,
+} from "../src/config/rbac/rbac-defs";
 import { lockPayroll } from "../src/modules/payroll/payroll.service";
 
 const prisma = new PrismaClient();
@@ -33,7 +37,10 @@ const PERMS_THU_NGAN: string[] = [
   PERMS.orders.update,
   PERMS.orders.advance,
   PERMS.orders.revert,
+  PERMS.attendance.qr,
   PERMS.attendance.scan,
+  PERMS.attendance.list,
+  PERMS.leave.list,
   PERMS.leave.create,
 ];
 
@@ -60,6 +67,29 @@ const PERMS_PHUC_VU: string[] = [
   PERMS.leave.create,
 ];
 
+const PERMS_BAKER: string[] = [
+  PERMS.statuses.list,
+  PERMS.menu_items.list,
+  PERMS.orders.list,
+  PERMS.orders.detail,
+  PERMS.orders.update,
+  PERMS.orders.advance,
+  PERMS.orders.revert,
+  PERMS.attendance.scan,
+  PERMS.leave.create,
+];
+
+const PERMS_BARISTA: string[] = [
+  PERMS.menu_items.list,
+  PERMS.orders.list,
+  PERMS.orders.create,
+  PERMS.orders.detail,
+  PERMS.orders.advance,
+  PERMS.orders.revert,
+  PERMS.attendance.scan,
+  PERMS.leave.create,
+];
+
 async function createStoreRoleWithPermissions(
   storeId: number,
   name: string,
@@ -71,7 +101,10 @@ async function createStoreRoleWithPermissions(
   const found = new Set(permissions.map((p) => p.code));
   const missing = permissionCodes.filter((c) => !found.has(c));
   if (missing.length > 0) {
-    console.warn(`⚠️  Thiếu permission khi tạo vai trò "${name}":`, missing);
+    console.warn(
+      `   ⚠️  Thiếu permission khi tạo vai trò "${name}":`,
+      missing.join(", "),
+    );
   }
 
   const storeRole = await prisma.storeRole.create({
@@ -95,6 +128,12 @@ async function addEmployeeToStore(
   passwordHash: string,
   person: { name: string; phone: string },
   storeRoleIds: number[],
+  salary?: {
+    salaryType: SalaryType;
+    baseSalary: number;
+    hourlyRate?: number;
+    workDays?: number[];
+  },
 ) {
   const user = await prisma.user.create({
     data: {
@@ -108,6 +147,10 @@ async function addEmployeeToStore(
       userId: user.id,
       storeId,
       role: StoreUserRoleType.employee,
+      salaryType: salary?.salaryType ?? SalaryType.MONTHLY,
+      baseSalary: salary?.baseSalary ?? 7_000_000,
+      hourlyRate: salary?.hourlyRate ?? null,
+      workDays: salary?.workDays ?? [],
     },
   });
   if (storeRoleIds.length > 0) {
@@ -118,73 +161,9 @@ async function addEmployeeToStore(
       })),
     });
   }
-  return user;
+  return { user, storeUser };
 }
 
-/** Cửa hàng lớn: 4 vai trò, 6 nhân viên (một vai trò / gộp vai trò / gần trùng vai trò POS) */
-async function seedCoffeeShopStaff(storeId: number, passwordHash: string) {
-  console.log(`\n👥 Seed nhân sự & vai trò cửa hàng (coffee) #${storeId}...`);
-
-  const [thuNgan, phaChe, phucVu, quanLyCa] = await Promise.all([
-    createStoreRoleWithPermissions(storeId, "Thu ngân", PERMS_THU_NGAN),
-    createStoreRoleWithPermissions(storeId, "Pha chế", PERMS_PHA_CHE),
-    createStoreRoleWithPermissions(storeId, "Phục vụ", PERMS_PHUC_VU),
-    createStoreRoleWithPermissions(
-      storeId,
-      "Quản lý ca",
-      STORE_OWNER_PERMS.filter((c) => !SHIFT_LEAD_EXCLUDE.has(c)),
-    ),
-  ]);
-
-  await addEmployeeToStore(storeId, passwordHash, { name: "Nguyễn Thị Mai", phone: "0902345678" }, [
-    thuNgan.id,
-  ]);
-  await addEmployeeToStore(storeId, passwordHash, { name: "Trần Văn Hùng", phone: "0902345679" }, [
-    phaChe.id,
-  ]);
-  await addEmployeeToStore(storeId, passwordHash, { name: "Lê Minh Anh", phone: "0902345680" }, [
-    phucVu.id,
-    thuNgan.id,
-  ]);
-  await addEmployeeToStore(storeId, passwordHash, { name: "Phạm Quốc Bảo", phone: "0902345681" }, [
-    quanLyCa.id,
-  ]);
-  await addEmployeeToStore(storeId, passwordHash, { name: "Hoàng Thu Giang", phone: "0902345682" }, [
-    phaChe.id,
-    phucVu.id,
-  ]);
-  await addEmployeeToStore(storeId, passwordHash, { name: "Đỗ Văn Kiên", phone: "0902345683" }, [
-    thuNgan.id,
-  ]);
-
-  console.log(
-    `   ✔ 4 vai trò (Thu ngân, Pha chế, Phục vụ, Quản lý ca) + 6 nhân viên (SĐT 0902345678–0902345683, pass: password123).`,
-  );
-}
-
-/** Cửa hàng nhỏ: 2 vai trò, 2 nhân viên */
-async function seedTeaShopStaff(storeId: number, passwordHash: string) {
-  console.log(`\n👥 Seed nhân sự & vai trò cửa hàng (trà sữa) #${storeId}...`);
-
-  const [thuNgan, phaCheTra] = await Promise.all([
-    createStoreRoleWithPermissions(storeId, "Thu ngân", PERMS_THU_NGAN),
-    createStoreRoleWithPermissions(storeId, "Pha chế trà sữa", PERMS_PHA_CHE),
-  ]);
-
-  await addEmployeeToStore(storeId, passwordHash, { name: "Nguyễn Ngọc Lan", phone: "0903456790" }, [
-    thuNgan.id,
-  ]);
-  await addEmployeeToStore(storeId, passwordHash, { name: "Trịnh Anh Tú", phone: "0903456791" }, [
-    phaCheTra.id,
-    thuNgan.id,
-  ]);
-
-  console.log(
-    `   ✔ 2 vai trò + 2 nhân viên (0903456790, 0903456791 — Tú gồm pha chế + thu ngân).`,
-  );
-}
-
-/** Ngày làm việc (date-only) theo VN — map tới cột `DATE` trong DB. */
 function vnDateOnly(y: number, month: number, day: number): Date {
   return new Date(
     `${y}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T00:00:00.000+07:00`,
@@ -203,353 +182,1006 @@ function vnDateTime(
   );
 }
 
-function daysInCalendarMonth(y: number, month: number): number {
+function daysInMonth(y: number, month: number): number {
   return new Date(y, month, 0).getDate();
 }
 
-/** Tháng trước (chuẩn lịch). */
-function prevMonthYear(y: number, month: number): { py: number; pm: number } {
-  if (month <= 1) return { py: y - 1, pm: 12 };
-  return { py: y, pm: month - 1 };
+function prevMonthYear(y: number, m: number) {
+  return m <= 1 ? { y: y - 1, m: 12 } : { y, m: m - 1 };
 }
 
-/** Tháng sau. */
-function nextMonthYear(y: number, month: number): { ny: number; nm: number } {
-  if (month >= 12) return { ny: y + 1, nm: 1 };
-  return { ny: y, nm: month + 1 };
+function randomInt(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-/**
- * Dữ liệu HRM để test: lịch cửa hàng, chấm công (WORK / nghỉ / vắng), đơn nghỉ (pending / duyệt / từ chối),
- * lương theo giờ & theo tháng, khóa bảng lương tháng trước.
- */
-async function seedHrDemoData(options: {
-  storeId: number;
-  reviewerId: number;
-  rich: boolean;
-}): Promise<void> {
-  const { storeId, reviewerId, rich } = options;
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
-  const tag = rich ? "Orderly Coffee (đủ)" : "Bon Bon (tối thiểu)";
-  console.log(`\n📅 Seed chấm công / lịch / nghỉ / lương — ${tag} #${storeId}...`);
+const VIETNAMESE_NAMES_MALE = [
+  "Nguyễn Văn An",
+  "Trần Văn Bình",
+  "Lê Quốc Huy",
+  "Phạm Minh Tuấn",
+  "Hoàng Đức Hiếu",
+  "Vũ Đình Khang",
+  "Đặng Công Thành",
+  "Bùi Tiến Dũng",
+  "Đỗ Hoàng Long",
+  "Hồ Đức Mạnh",
+  "Ngô Văn Phát",
+  "Dương Chí Công",
+  "Lâm Quốc Thắng",
+  "Mai Đình Nghĩa",
+  "Tạ Văn Tài",
+];
+const VIETNAMESE_NAMES_FEMALE = [
+  "Nguyễn Thị Mai",
+  "Trần Thị Lan",
+  "Lê Minh Anh",
+  "Phạm Thu Hà",
+  "Hoàng Thu Giang",
+  "Vũ Thị Hạnh",
+  "Đặng Ngọc Linh",
+  "Bùi Thanh Hương",
+  "Đỗ Thị Quỳnh",
+  "Hồ Ngọc Trâm",
+  "Ngô Bích Ngọc",
+  "Dương Hồng Nhung",
+  "Lâm Khánh Vy",
+  "Mai Phương Thảo",
+  "Tạ Hoàng Yến",
+];
+const VIETNAMESE_PHONES = [
+  "0901111111",
+  "0901111112",
+  "0901111113",
+  "0901111114",
+  "0901111115",
+  "0901111116",
+  "0901111117",
+  "0901111118",
+  "0901111119",
+  "0901111120",
+  "0901111121",
+  "0901111122",
+  "0901111123",
+  "0901111124",
+  "0901111125",
+  "0901111126",
+  "0901111127",
+  "0901111128",
+  "0901111129",
+  "0901111130",
+  "0901111131",
+  "0901111132",
+  "0901111133",
+  "0901111134",
+  "0901111135",
+];
 
+let phoneIdx = 0;
+function nextPhone(): string {
+  return VIETNAMESE_PHONES[phoneIdx++ % VIETNAMESE_PHONES.length];
+}
+function nextName(male = true): string {
+  return male ? pick(VIETNAMESE_NAMES_MALE) : pick(VIETNAMESE_NAMES_FEMALE);
+}
+
+async function seedStoreStaff(
+  storeId: number,
+  passwordHash: string,
+  configs: {
+    roleName: string;
+    perms: string[];
+  }[],
+  employees: {
+    name: string;
+    phone: string;
+    male: boolean;
+    roleNames: string[];
+    salary: {
+      salaryType: SalaryType;
+      baseSalary: number;
+      hourlyRate?: number;
+      workDays?: number[];
+    };
+  }[],
+) {
+  const roleMap = new Map<string, { id: number }>();
+  for (const cfg of configs) {
+    const role = await createStoreRoleWithPermissions(
+      storeId,
+      cfg.roleName,
+      cfg.perms,
+    );
+    roleMap.set(cfg.roleName, role);
+  }
+
+  const results: { user: { id: number }; storeUser: { id: number } }[] = [];
+  for (const emp of employees) {
+    const roleIds = emp.roleNames.map((rn) => roleMap.get(rn)!.id);
+    const result = await addEmployeeToStore(
+      storeId,
+      passwordHash,
+      emp,
+      roleIds,
+      emp.salary,
+    );
+    results.push(result);
+  }
+  return results;
+}
+
+async function seedOrderlyCoffee(storeId: number, passwordHash: string) {
+  console.log(`\n☕ Seed Orderly Coffee & Tea #${storeId}...`);
+
+  const staff = await seedStoreStaff(
+    storeId,
+    passwordHash,
+    [
+      { roleName: "Thu ngân", perms: PERMS_THU_NGAN },
+      { roleName: "Pha chế", perms: PERMS_PHA_CHE },
+      { roleName: "Phục vụ", perms: PERMS_PHUC_VU },
+      {
+        roleName: "Quản lý ca",
+        perms: STORE_OWNER_PERMS.filter((c) => !SHIFT_LEAD_EXCLUDE.has(c)),
+      },
+    ],
+    [
+      {
+        name: "Nguyễn Thị Mai",
+        phone: nextPhone(),
+        male: false,
+        roleNames: ["Thu ngân"],
+        salary: { salaryType: SalaryType.MONTHLY, baseSalary: 8_000_000 },
+      },
+      {
+        name: "Trần Văn Hùng",
+        phone: nextPhone(),
+        male: true,
+        roleNames: ["Pha chế"],
+        salary: {
+          salaryType: SalaryType.HOURLY,
+          baseSalary: 0,
+          hourlyRate: 55_000,
+          workDays: [1, 2, 3, 4, 5],
+        },
+      },
+      {
+        name: "Lê Minh Anh",
+        phone: nextPhone(),
+        male: false,
+        roleNames: ["Phục vụ", "Thu ngân"],
+        salary: { salaryType: SalaryType.MONTHLY, baseSalary: 7_000_000 },
+      },
+      {
+        name: "Phạm Quốc Bảo",
+        phone: nextPhone(),
+        male: true,
+        roleNames: ["Quản lý ca"],
+        salary: { salaryType: SalaryType.MONTHLY, baseSalary: 12_000_000 },
+      },
+      {
+        name: "Hoàng Thu Giang",
+        phone: nextPhone(),
+        male: false,
+        roleNames: ["Pha chế", "Phục vụ"],
+        salary: {
+          salaryType: SalaryType.MONTHLY,
+          baseSalary: 7_500_000,
+          workDays: [1, 2, 3, 4, 5],
+        },
+      },
+      {
+        name: "Đỗ Văn Kiên",
+        phone: nextPhone(),
+        male: true,
+        roleNames: ["Thu ngân"],
+        salary: { salaryType: SalaryType.MONTHLY, baseSalary: 8_500_000 },
+      },
+    ],
+  );
+
+  console.log(
+    `   ✔ 6 nhân viên (SĐT: ${staff.map((s) => s.user.id).join(", ")}, pass: password123)`,
+  );
+  return staff.map((s) => s.storeUser.id);
+}
+
+async function seedBonBon(storeId: number, passwordHash: string) {
+  console.log(`\n🧋 Seed Trà Sữa Bon Bon #${storeId}...`);
+
+  const staff = await seedStoreStaff(
+    storeId,
+    passwordHash,
+    [
+      { roleName: "Thu ngân", perms: PERMS_THU_NGAN },
+      { roleName: "Pha chế", perms: PERMS_PHA_CHE },
+    ],
+    [
+      {
+        name: "Nguyễn Ngọc Lan",
+        phone: nextPhone(),
+        male: false,
+        roleNames: ["Thu ngân"],
+        salary: { salaryType: SalaryType.MONTHLY, baseSalary: 7_200_000 },
+      },
+      {
+        name: "Trịnh Anh Tú",
+        phone: nextPhone(),
+        male: true,
+        roleNames: ["Pha chế", "Thu ngân"],
+        salary: {
+          salaryType: SalaryType.HOURLY,
+          baseSalary: 0,
+          hourlyRate: 50_000,
+          workDays: [1, 2, 3, 4, 5, 6],
+        },
+      },
+      {
+        name: "Lê Thị Ngọc",
+        phone: nextPhone(),
+        male: false,
+        roleNames: ["Pha chế"],
+        salary: { salaryType: SalaryType.MONTHLY, baseSalary: 6_800_000 },
+      },
+    ],
+  );
+
+  console.log(`   ✔ 3 nhân viên`);
+  return staff.map((s) => s.storeUser.id);
+}
+
+async function seedBakery(storeId: number, passwordHash: string) {
+  console.log(`\n🥖 Seed Bánh Mì & Croissant #${storeId}...`);
+
+  const staff = await seedStoreStaff(
+    storeId,
+    passwordHash,
+    [
+      { roleName: "Thu ngân", perms: PERMS_THU_NGAN },
+      { roleName: "Thợ làm bánh", perms: PERMS_BAKER },
+      { roleName: "Barista", perms: PERMS_BARISTA },
+    ],
+    [
+      {
+        name: "Phan Thị Hồng",
+        phone: nextPhone(),
+        male: false,
+        roleNames: ["Thu ngân"],
+        salary: { salaryType: SalaryType.MONTHLY, baseSalary: 7_500_000 },
+      },
+      {
+        name: "Nguyễn Hoàng Nam",
+        phone: nextPhone(),
+        male: true,
+        roleNames: ["Thợ làm bánh"],
+        salary: {
+          salaryType: SalaryType.HOURLY,
+          baseSalary: 0,
+          hourlyRate: 60_000,
+          workDays: [1, 2, 3, 4, 5, 6],
+        },
+      },
+      {
+        name: "Vũ Thị Hạnh",
+        phone: nextPhone(),
+        male: false,
+        roleNames: ["Thợ làm bánh", "Barista"],
+        salary: {
+          salaryType: SalaryType.MONTHLY,
+          baseSalary: 8_000_000,
+          workDays: [1, 2, 3, 4, 5],
+        },
+      },
+      {
+        name: "Đặng Minh Quân",
+        phone: nextPhone(),
+        male: true,
+        roleNames: ["Barista", "Thu ngân"],
+        salary: { salaryType: SalaryType.MONTHLY, baseSalary: 7_000_000 },
+      },
+    ],
+  );
+
+  console.log(`   ✔ 4 nhân viên`);
+  return staff.map((s) => s.storeUser.id);
+}
+
+async function seedScheduleOverrides(storeId: number) {
   const now = new Date();
-  const curY = now.getFullYear();
-  const curM = now.getMonth() + 1;
-  const { py: prevY, pm: prevM } = prevMonthYear(curY, curM);
-  const { ny: nextY, nm: nextM } = nextMonthYear(curY, curM);
+  const y = now.getFullYear();
+  const m = now.getMonth() + 1;
 
-  await prisma.store.update({
-    where: { id: storeId },
-    data: { defaultWorkDays: [1, 2, 3, 4, 5, 6] },
-  });
-
-  const firstSun = (y: number, m: number): number | null => {
-    const last = daysInCalendarMonth(y, m);
-    for (let d = 1; d <= last; d++) {
-      const dt = new Date(y, m - 1, d);
-      if (dt.getMonth() !== m - 1) break;
-      if (dt.getDay() === 0) return d;
+  for (let d = 1; d <= daysInMonth(y, m); d++) {
+    const dt = new Date(y, m - 1, d);
+    if (dt.getDay() === 0) {
+      await prisma.scheduleOverride
+        .create({
+          data: {
+            storeId,
+            date: vnDateOnly(y, m, d),
+            type: OverrideType.WORKING_DAY,
+          },
+        })
+        .catch(() => {});
+      break;
     }
-    return null;
-  };
-  const firstWed = (y: number, m: number): number | null => {
-    const last = daysInCalendarMonth(y, m);
-    for (let d = 1; d <= last; d++) {
-      const dt = new Date(y, m - 1, d);
-      if (dt.getMonth() !== m - 1) break;
-      if (dt.getDay() === 3) return d;
+  }
+
+  for (let d = 1; d <= daysInMonth(y, m); d++) {
+    const dt = new Date(y, m - 1, d);
+    if (dt.getDay() === 3) {
+      await prisma.scheduleOverride
+        .create({
+          data: { storeId, date: vnDateOnly(y, m, d), type: OverrideType.OFF },
+        })
+        .catch(() => {});
+      break;
     }
-    return null;
-  };
-
-  const sun = firstSun(curY, curM);
-  const wed = firstWed(curY, curM);
-  if (sun) {
-    await prisma.scheduleOverride.create({
-      data: {
-        storeId,
-        date: vnDateOnly(curY, curM, sun),
-        type: OverrideType.WORKING_DAY,
-      },
-    });
   }
-  if (wed) {
-    await prisma.scheduleOverride.create({
-      data: {
-        storeId,
-        date: vnDateOnly(curY, curM, wed),
-        type: OverrideType.OFF,
-      },
-    });
-  }
+}
 
-  const staff = await prisma.storeUser.findMany({
-    where: { storeId, role: StoreUserRoleType.employee },
-    include: { user: true },
-    orderBy: { id: "asc" },
-  });
+async function seedAttendance(
+  storeId: number,
+  employeeIds: number[],
+  y: number,
+  m: number,
+) {
+  const configs = [
+    {
+      empIdx: 0,
+      workDays: [1, 2, 3, 4, 5, 6],
+      startHour: 8,
+      startMin: 0,
+      endHour: 17,
+      endMin: 0,
+      mins: 480,
+      ratio: 0.95,
+    },
+    {
+      empIdx: 1,
+      workDays: [1, 2, 3, 4, 5],
+      startHour: 9,
+      startMin: 0,
+      endHour: 18,
+      endMin: 0,
+      mins: 480,
+      ratio: 0.8,
+    },
+    {
+      empIdx: 2,
+      workDays: [1, 2, 3, 4, 5, 6],
+      startHour: 7,
+      startMin: 30,
+      endHour: 16,
+      endMin: 30,
+      mins: 480,
+      ratio: 0.9,
+    },
+    {
+      empIdx: 3,
+      workDays: [1, 2, 3, 4, 5, 6],
+      startHour: 8,
+      startMin: 0,
+      endHour: 18,
+      endMin: 0,
+      mins: 540,
+      ratio: 0.85,
+    },
+    {
+      empIdx: 4,
+      workDays: [1, 2, 3, 4, 5],
+      startHour: 8,
+      startMin: 30,
+      endHour: 17,
+      endMin: 30,
+      mins: 480,
+      ratio: 0.9,
+    },
+    {
+      empIdx: 5,
+      workDays: [1, 2, 3, 4, 5, 6],
+      startHour: 8,
+      startMin: 0,
+      endHour: 17,
+      endMin: 0,
+      mins: 480,
+      ratio: 0.85,
+    },
+  ];
 
-  if (staff.length === 0) {
-    console.log("   ⚠️  Không có nhân viên — bỏ qua seed HRM.");
-    return;
-  }
+  const rows: Prisma.AttendanceCreateManyInput[] = [];
+  const dim = daysInMonth(y, m);
 
-  if (rich && staff.length >= 6) {
-    const [su0, su1, su2, su3, su4, su5] = staff;
-    await prisma.storeUser.update({
-      where: { id: su0.id },
-      data: {
-        salaryType: SalaryType.MONTHLY,
-        baseSalary: 8_000_000,
-        workDays: [],
-        hourlyRate: null,
-      },
-    });
-    await prisma.storeUser.update({
-      where: { id: su1.id },
-      data: {
-        salaryType: SalaryType.HOURLY,
-        baseSalary: 0,
-        workDays: [1, 2, 3, 4, 5],
-        hourlyRate: 55_000,
-      },
-    });
-    await prisma.storeUser.update({
-      where: { id: su2.id },
-      data: {
-        salaryType: SalaryType.MONTHLY,
-        baseSalary: 7_000_000,
-        workDays: [],
-        hourlyRate: null,
-      },
-    });
-    await prisma.storeUser.update({
-      where: { id: su3.id },
-      data: {
-        salaryType: SalaryType.MONTHLY,
-        baseSalary: 12_000_000,
-        workDays: [],
-        hourlyRate: null,
-      },
-    });
-    await prisma.storeUser.update({
-      where: { id: su4.id },
-      data: {
-        salaryType: SalaryType.MONTHLY,
-        baseSalary: 7_500_000,
-        workDays: [1, 2, 3, 4, 5],
-        hourlyRate: null,
-      },
-    });
-    await prisma.storeUser.update({
-      where: { id: su5.id },
-      data: {
-        salaryType: SalaryType.MONTHLY,
-        baseSalary: 8_500_000,
-        workDays: [],
-        hourlyRate: null,
-      },
-    });
-  } else {
-    for (let i = 0; i < staff.length; i++) {
-      const hourly = i === 1;
-      await prisma.storeUser.update({
-        where: { id: staff[i].id },
-        data: hourly
-          ? {
-              salaryType: SalaryType.HOURLY,
-              hourlyRate: 50_000,
-              baseSalary: 0,
-              workDays: [1, 2, 3, 4, 5, 6],
-            }
-          : {
-              salaryType: SalaryType.MONTHLY,
-              baseSalary: 7_000_000 + i * 200_000,
-              workDays: [],
-              hourlyRate: null,
-            },
+  for (let idx = 0; idx < employeeIds.length && idx < configs.length; idx++) {
+    const cfg = configs[idx];
+    const eid = employeeIds[idx];
+    if (!eid) continue;
+
+    const daysOff = new Set<number>();
+    const paidLeaveDays = new Set<number>();
+    const unpaidLeaveDays = new Set<number>();
+
+    if (idx === 0) {
+      paidLeaveDays.add(Math.min(dim, 14));
+    }
+    if (idx === 1) {
+      paidLeaveDays.add(7);
+      paidLeaveDays.add(8);
+    }
+    if (idx === 2) {
+      unpaidLeaveDays.add(Math.min(dim, 16));
+    }
+    if (idx === 4) {
+      paidLeaveDays.add(Math.min(dim, 11));
+      paidLeaveDays.add(Math.min(dim, 12));
+    }
+    if (idx === 5 && dim >= 20) {
+      daysOff.add(3);
+      daysOff.add(4);
+      daysOff.add(5);
+    }
+
+    for (let d = 1; d <= dim; d++) {
+      const dt = new Date(y, m - 1, d);
+      const wd = dt.getDay() === 0 ? 7 : dt.getDay();
+      if (!cfg.workDays.includes(wd)) continue;
+      if (daysOff.has(d)) continue;
+
+      if (paidLeaveDays.has(d)) {
+        rows.push({
+          employeeId: eid,
+          date: vnDateOnly(y, m, d),
+          checkIn: null,
+          checkOut: null,
+          workMinutes: null,
+          status: AttendanceStatus.PAID_LEAVE,
+        });
+        continue;
+      }
+      if (unpaidLeaveDays.has(d)) {
+        rows.push({
+          employeeId: eid,
+          date: vnDateOnly(y, m, d),
+          checkIn: null,
+          checkOut: null,
+          workMinutes: null,
+          status: AttendanceStatus.UNPAID_LEAVE,
+        });
+        continue;
+      }
+
+      if (Math.random() > cfg.ratio) continue;
+
+      const late = Math.random() < 0.15 ? randomInt(5, 30) : 0;
+      const early = Math.random() < 0.1 ? randomInt(5, Math.min(20, cfg.endMin)) : 0;
+      const actualMins = Math.max(0, cfg.mins - late - early);
+      const cin = vnDateTime(y, m, d, cfg.startHour, Math.min(59, cfg.startMin + late));
+      const cout = vnDateTime(y, m, d, cfg.endHour, Math.max(0, cfg.endMin - early));
+
+      rows.push({
+        employeeId: eid,
+        date: vnDateOnly(y, m, d),
+        checkIn: cin,
+        checkOut: cout,
+        workMinutes: actualMins,
+        status: AttendanceStatus.WORK,
       });
     }
   }
 
-  const attendRows: Prisma.AttendanceCreateManyInput[] = [];
+  if (rows.length > 0) {
+    await prisma.attendance.createMany({ data: rows });
+  }
+  return rows.length;
+}
 
-  const addWork = (employeeId: number, y: number, m: number, day: number, mins: number) => {
-    const date = vnDateOnly(y, m, day);
-    const cin = vnDateTime(y, m, day, 8, 0);
-    const cout = vnDateTime(y, m, day, 17, 0);
-    attendRows.push({
-      employeeId,
-      date,
-      checkIn: cin,
-      checkOut: cout,
-      workMinutes: mins,
-      status: AttendanceStatus.WORK,
-    });
-  };
+async function seedLeaveRequests(
+  storeId: number,
+  employeeIds: number[],
+  reviewerId: number,
+) {
+  const y = new Date().getFullYear();
+  const m = new Date().getMonth() + 1;
+  const nm = m >= 12 ? 1 : m + 1;
+  const ny = m >= 12 ? y + 1 : y;
 
-  if (rich && staff.length >= 6) {
-    const [su0, su1, su2, su3, su4, su5] = staff;
-    const dim = daysInCalendarMonth(curY, curM);
-    const paidLeaveDay = Math.min(dim, 14);
-    for (let d = 1; d <= Math.min(dim, 20); d++) {
-      const dt = new Date(curY, curM - 1, d);
-      if (dt.getDay() === 0 || d === wed || d === paidLeaveDay) continue;
-      addWork(su0.id, curY, curM, d, 480);
-      if (d % 2 === 0 && d <= 6) addWork(su1.id, curY, curM, d, 420);
-    }
+  const leaves: Prisma.LeaveRequestCreateManyInput[] = [];
 
-    attendRows.push({
-      employeeId: su0.id,
-      date: vnDateOnly(curY, curM, paidLeaveDay),
-      checkIn: null,
-      checkOut: null,
-      workMinutes: null,
-      status: AttendanceStatus.PAID_LEAVE,
+  if (employeeIds[0]) {
+    leaves.push({
+      storeId,
+      employeeId: employeeIds[0],
+      fromDate: vnDateOnly(ny, nm, 2),
+      toDate: vnDateOnly(ny, nm, 4),
+      isPaid: true,
+      reason: "Nghỉ phép năm đi du lịch Đà Lạt",
+      status: LeaveRequestStatus.PENDING,
     });
-
-    attendRows.push({
-      employeeId: su1.id,
-      date: vnDateOnly(curY, curM, 7),
-      checkIn: null,
-      checkOut: null,
-      workMinutes: null,
-      status: AttendanceStatus.PAID_LEAVE,
+  }
+  if (employeeIds[2]) {
+    leaves.push({
+      storeId,
+      employeeId: employeeIds[2],
+      fromDate: vnDateOnly(y, m, 3),
+      toDate: vnDateOnly(y, m, 3),
+      isPaid: false,
+      reason: "Việc gia đình đột xuất",
+      status: LeaveRequestStatus.REJECTED,
+      reviewedBy: reviewerId,
     });
-    attendRows.push({
-      employeeId: su1.id,
-      date: vnDateOnly(curY, curM, 8),
-      checkIn: null,
-      checkOut: null,
-      workMinutes: null,
-      status: AttendanceStatus.PAID_LEAVE,
+  }
+  if (employeeIds[1]) {
+    leaves.push({
+      storeId,
+      employeeId: employeeIds[1],
+      fromDate: vnDateOnly(y, m, 7),
+      toDate: vnDateOnly(y, m, 8),
+      isPaid: true,
+      reason: "Ốm đau — nghỉ bù",
+      status: LeaveRequestStatus.APPROVED,
+      reviewedBy: reviewerId,
     });
-
-    attendRows.push({
-      employeeId: su2.id,
-      date: vnDateOnly(curY, curM, Math.min(dim, 16)),
-      checkIn: null,
-      checkOut: null,
-      workMinutes: null,
-      status: AttendanceStatus.UNPAID_LEAVE,
+  }
+  if (employeeIds[3]) {
+    leaves.push({
+      storeId,
+      employeeId: employeeIds[3],
+      fromDate: vnDateOnly(ny, nm, 10),
+      toDate: vnDateOnly(ny, nm, 12),
+      isPaid: true,
+      reason: "Đám cưới bạn thân",
+      status: LeaveRequestStatus.PENDING,
     });
-
-    attendRows.push({
-      employeeId: su4.id,
-      date: vnDateOnly(curY, curM, Math.min(dim, 11)),
-      checkIn: null,
-      checkOut: null,
-      workMinutes: null,
-      status: AttendanceStatus.PAID_LEAVE,
+  }
+  if (employeeIds[4]) {
+    leaves.push({
+      storeId,
+      employeeId: employeeIds[4],
+      fromDate: vnDateOnly(y, m, 11),
+      toDate: vnDateOnly(y, m, 12),
+      isPaid: true,
+      reason: "Khám sức khỏe định kỳ",
+      status: LeaveRequestStatus.APPROVED,
+      reviewedBy: reviewerId,
     });
-    attendRows.push({
-      employeeId: su4.id,
-      date: vnDateOnly(curY, curM, Math.min(dim, 12)),
-      checkIn: null,
-      checkOut: null,
-      workMinutes: null,
-      status: AttendanceStatus.PAID_LEAVE,
+  }
+  if (employeeIds[5]) {
+    leaves.push({
+      storeId,
+      employeeId: employeeIds[5],
+      fromDate: vnDateOnly(ny, nm, 15),
+      toDate: vnDateOnly(ny, nm, 15),
+      isPaid: false,
+      reason: "Việc riêng — không lương",
+      status: LeaveRequestStatus.PENDING,
     });
-
-    const dmPrev = daysInCalendarMonth(prevY, prevM);
-    for (let d = 1; d <= dmPrev; d++) {
-      const dt = new Date(prevY, prevM - 1, d);
-      if (dt.getDay() === 0) continue;
-      addWork(su0.id, prevY, prevM, d, 480);
-      if (d % 3 !== 0) addWork(su1.id, prevY, prevM, d, 360);
-      if (d % 2 === 0) addWork(su2.id, prevY, prevM, d, 450);
-    }
-    // su5: vắng một số ngày làm — không tạo dòng cho ngày 3,4,5 (nếu là ngày làm Tu-Sa)
-    for (let d = 6; d <= Math.min(dmPrev, 25); d++) {
-      const dt = new Date(prevY, prevM - 1, d);
-      if (dt.getDay() === 0) continue;
-      addWork(su5.id, prevY, prevM, d, 480);
-    }
-  } else {
-    const a = staff[0];
-    const b = staff[1] ?? staff[0];
-    const d1 = Math.min(10, daysInCalendarMonth(curY, curM));
-    const d2 = Math.min(12, daysInCalendarMonth(curY, curM));
-    addWork(a.id, curY, curM, d1, 500);
-    addWork(b.id, curY, curM, d2, 400);
-    addWork(a.id, prevY, prevM, Math.min(15, daysInCalendarMonth(prevY, prevM)), 480);
   }
 
-  await prisma.attendance.createMany({ data: attendRows });
+  if (leaves.length > 0) {
+    await prisma.leaveRequest.createMany({ data: leaves });
+  }
+  return leaves.length;
+}
 
-  if (rich && staff.length >= 6) {
-    const [su0, su1, su2] = staff;
-    await prisma.leaveRequest.createMany({
-      data: [
-        {
-          storeId,
-          employeeId: su0.id,
-          fromDate: vnDateOnly(nextY, nextM, 2),
-          toDate: vnDateOnly(nextY, nextM, 4),
-          isPaid: true,
-          reason: "[SEED] Đơn chờ duyệt — nghỉ có lương",
-          status: LeaveRequestStatus.PENDING,
-        },
-        {
-          storeId,
-          employeeId: su2.id,
-          fromDate: vnDateOnly(curY, curM, 3),
-          toDate: vnDateOnly(curY, curM, 3),
-          isPaid: false,
-          reason: "[SEED] Đơn bị từ chối",
-          status: LeaveRequestStatus.REJECTED,
-          reviewedBy: reviewerId,
-        },
-        {
-          storeId,
-          employeeId: su1.id,
-          fromDate: vnDateOnly(curY, curM, 7),
-          toDate: vnDateOnly(curY, curM, 8),
-          isPaid: true,
-          reason: "[SEED] Đơn đã duyệt (đã sync vào chấm công)",
-          status: LeaveRequestStatus.APPROVED,
-          reviewedBy: reviewerId,
-        },
-      ],
+async function seedStoreData(
+  storeId: number,
+  menuType: "coffee" | "tea" | "bakery",
+) {
+  const statuses = [
+    { storeId, name: "Chờ xử lý", type: StatusType.start, sortOrder: 1 },
+    { storeId, name: "Đang pha chế", type: StatusType.mid, sortOrder: 5 },
+    { storeId, name: "Kiểm tra", type: StatusType.mid, sortOrder: 10 },
+    { storeId, name: "Đóng gói", type: StatusType.mid, sortOrder: 15 },
+    { storeId, name: "Hoàn thành", type: StatusType.end, sortOrder: 20 },
+  ];
+  await prisma.status.createMany({ data: statuses });
+
+  const menuData: Record<
+    string,
+    { items: { name: string; price: number }[]; sort: number }
+  > =
+    menuType === "coffee"
+      ? {
+          "Cà phê Việt Nam": {
+            sort: 1,
+            items: [
+              { name: "Cà phê Đen Đá", price: 29000 },
+              { name: "Cà phê Sữa Đá", price: 35000 },
+              { name: "Bạc Xỉu", price: 39000 },
+              { name: "Cà phê Muối", price: 45000 },
+              { name: "Cà phê Trứng", price: 55000 },
+            ],
+          },
+          "Cà phê pha máy": {
+            sort: 2,
+            items: [
+              { name: "Espresso", price: 35000 },
+              { name: "Americano", price: 40000 },
+              { name: "Cappuccino", price: 50000 },
+              { name: "Latte", price: 50000 },
+              { name: "Caramel Macchiato", price: 55000 },
+              { name: "Mocha", price: 55000 },
+            ],
+          },
+          "Trà trái cây": {
+            sort: 3,
+            items: [
+              { name: "Trà Đào Cam Sả", price: 45000 },
+              { name: "Trà Vải Nhiệt Đới", price: 45000 },
+              { name: "Trà Olong Sen Vàng", price: 50000 },
+              { name: "Trà Sữa Trân Châu Đường Đen", price: 45000 },
+              { name: "Trà Sữa Nướng", price: 49000 },
+              { name: "Trà Chanh Dây", price: 42000 },
+            ],
+          },
+          "Đá xay": {
+            sort: 4,
+            items: [
+              { name: "Matcha Đá Xay", price: 55000 },
+              { name: "Cookies & Cream", price: 55000 },
+              { name: "Chocolate Đá Xay", price: 55000 },
+              { name: "Dâu Tây Đá Xay", price: 55000 },
+            ],
+          },
+          "Bánh ngọt": {
+            sort: 5,
+            items: [
+              { name: "Bánh Croissant bơ tỏi", price: 35000 },
+              { name: "Tiramisu", price: 45000 },
+              { name: "Mousse Chanh Dây", price: 40000 },
+              { name: "Cheesecake Dâu", price: 50000 },
+              { name: "Bánh Flan Caramel", price: 25000 },
+            ],
+          },
+        }
+      : menuType === "tea"
+        ? {
+            "Trà sữa": {
+              sort: 1,
+              items: [
+                { name: "Trà Sữa Trân Châu Đường Đen", price: 42000 },
+                { name: "Trà Sữa Okinawa", price: 45000 },
+                { name: "Trà Sữa Matcha", price: 48000 },
+                { name: "Trà Sữa Khoai Môn", price: 45000 },
+              ],
+            },
+            "Trà trái cây": {
+              sort: 2,
+              items: [
+                { name: "Trà Đào Cam Sả", price: 42000 },
+                { name: "Trà Vải", price: 42000 },
+                { name: "Trà Ổi Hồng", price: 45000 },
+                { name: "Trà Táo Đỏ", price: 45000 },
+              ],
+            },
+            Topping: {
+              sort: 3,
+              items: [
+                { name: "Trân châu đen", price: 8000 },
+                { name: "Trân châu trắng", price: 8000 },
+                { name: "Thạch dừa", price: 8000 },
+                { name: "Pudding", price: 10000 },
+                { name: "Hạt é", price: 5000 },
+              ],
+            },
+            "Đá xay": {
+              sort: 4,
+              items: [
+                { name: "Sinh tố Bơ", price: 45000 },
+                { name: "Sinh tố Dâu", price: 40000 },
+                { name: "Đá xay Sầu Riêng", price: 55000 },
+              ],
+            },
+          }
+        : {
+            "Bánh mì Âu": {
+              sort: 1,
+              items: [
+                { name: "Bánh Mì Bơ Tỏi", price: 25000 },
+                { name: "Croissant trứng muối", price: 40000 },
+                { name: "Bánh Mì Que Pate", price: 30000 },
+                { name: "Bánh Mì Sốt Bò Bít Tết", price: 55000 },
+              ],
+            },
+            "Bánh ngọt": {
+              sort: 2,
+              items: [
+                { name: "Tiramisu", price: 45000 },
+                { name: "Bánh Mousse Xoài", price: 42000 },
+                { name: "Cheesecake Đào", price: 50000 },
+                { name: "Bánh Opera Socola", price: 55000 },
+                { name: "Macaron nhiều vị", price: 35000 },
+              ],
+            },
+            "Bánh mặn": {
+              sort: 3,
+              items: [
+                { name: "Pizza Mini Nhân Thịt", price: 45000 },
+                { name: "Bánh Hamburger Bò", price: 55000 },
+                { name: "Hotdog Phô Mai", price: 35000 },
+                { name: "Bánh Pastel Nhân Gà", price: 40000 },
+              ],
+            },
+            "Đồ uống": {
+              sort: 4,
+              items: [
+                { name: "Americano", price: 35000 },
+                { name: "Latte", price: 45000 },
+                { name: "Cappuccino", price: 45000 },
+                { name: "Chocolate Nóng", price: 40000 },
+                { name: "Matcha Latte", price: 45000 },
+              ],
+            },
+          };
+
+  const catIds: number[] = [];
+  for (const [catName, catDef] of Object.entries(menuData)) {
+    const cat = await prisma.category.create({
+      data: { storeId, name: catName, sortOrder: catDef.sort },
     });
-  } else if (staff.length >= 1) {
-    await prisma.leaveRequest.create({
-      data: {
+    catIds.push(cat.id);
+    await prisma.menuItem.createMany({
+      data: catDef.items.map((item) => ({ categoryId: cat.id, ...item })),
+    });
+  }
+
+  const areaNames =
+    menuType === "bakery"
+      ? ["Trong nhà", "Ngoài sân", "Quầy bánh", "Khu VIP"]
+      : ["Tầng 1", "Tầng 2", "Sân vườn", "Quầy Bar"];
+
+  const areaIdMap = new Map<string, number>();
+  for (let i = 0; i < areaNames.length; i++) {
+    const area = await prisma.area.create({
+      data: { storeId, name: areaNames[i], sortOrder: i + 1 },
+    });
+    areaIdMap.set(areaNames[i], area.id);
+  }
+
+  const tableLabels =
+    menuType === "bakery"
+      ? {
+          "Trong nhà": ["Bàn TN1", "Bàn TN2", "Bàn TN3", "Bàn TN4", "Bàn TN5"],
+          "Ngoài sân": ["Bàn NS1", "Bàn NS2", "Bàn NS3"],
+          "Quầy bánh": ["Ghế Q1", "Ghế Q2", "Ghế Q3", "Ghế Q4"],
+          "Khu VIP": ["Bàn VIP1", "Bàn VIP2"],
+        }
+      : {
+          "Tầng 1": [
+            "Bàn 101",
+            "Bàn 102",
+            "Bàn 103",
+            "Bàn 104",
+            "Bàn 105",
+            "Bàn 106",
+          ],
+          "Tầng 2": [
+            "Bàn 201",
+            "Bàn 202",
+            "Bàn 203",
+            "Bàn 204",
+            "Bàn 205",
+            "Bàn 206",
+            "Bàn 207",
+            "Bàn 208",
+          ],
+          "Sân vườn": ["Bàn SV1", "Bàn SV2", "Bàn SV3", "Bàn SV4", "Bàn SV5"],
+          "Quầy Bar": ["Ghế Bar 1", "Ghế Bar 2", "Ghế Bar 3", "Ghế Bar 4"],
+        };
+
+  const tableIdsByArea = new Map<number, number[]>();
+  for (const [areaName, tables] of Object.entries(tableLabels)) {
+    const areaId = areaIdMap.get(areaName)!;
+    const ids: number[] = [];
+    for (let i = 0; i < tables.length; i++) {
+      const table = await prisma.table.create({
+        data: { areaId, name: tables[i], sortOrder: i + 1 },
+      });
+      ids.push(table.id);
+    }
+    tableIdsByArea.set(areaId, ids);
+  }
+
+  const allTableIds = [...tableIdsByArea.values()].flat();
+  const menuItems = await prisma.menuItem.findMany({
+    where: { category: { storeId } },
+  });
+  const orderStatuses = await prisma.status.findMany({
+    where: { storeId },
+    orderBy: { sortOrder: "asc" },
+  });
+
+  const orderEntries: {
+    storeId: number;
+    tableId: number | null;
+    tableSnapshot: string | null;
+    statusId: number;
+    statusSnapshot: string;
+    createdAt: Date;
+  }[] = [];
+  const orderItemEntries: {
+    orderIdx: number;
+    statusId: number;
+    statusSnapshot: string | null;
+    nameSnapshot: string;
+    priceSnapshot: number;
+    qty: number;
+  }[] = [];
+
+  let totalOrders = 0;
+  const now = new Date();
+  const today = new Date(
+    Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()),
+  );
+
+  for (const st of orderStatuses) {
+    const count = st.type === "end" ? randomInt(10, 20) : randomInt(3, 8);
+    totalOrders += count;
+
+    for (let i = 0; i < count; i++) {
+      const orderIdx = orderEntries.length;
+      const daysAgo = randomInt(0, 14);
+      const orderDate = new Date(today);
+      orderDate.setUTCDate(orderDate.getUTCDate() - daysAgo);
+      const hours = randomInt(7, 21);
+      const minutes = randomInt(0, 59);
+      orderDate.setUTCHours(hours, minutes, randomInt(0, 59), 0);
+
+      const hasTable = Math.random() < 0.6;
+      const tableId = hasTable ? pick(allTableIds) : null;
+      const tableSnapshot = hasTable
+        ? ((await prisma.table.findUnique({ where: { id: tableId! } }))?.name ??
+          null)
+        : null;
+
+      orderEntries.push({
         storeId,
-        employeeId: staff[0].id,
-        fromDate: vnDateOnly(nextY, nextM, 5),
-        toDate: vnDateOnly(nextY, nextM, 6),
-        isPaid: false,
-        reason: "[SEED] Đơn nghỉ chờ duyệt",
-        status: LeaveRequestStatus.PENDING,
-      },
-    });
-  }
+        tableId,
+        tableSnapshot,
+        statusId: st.id,
+        statusSnapshot: st.name,
+        createdAt: orderDate,
+      });
 
-  if (rich) {
-    try {
-      await lockPayroll(storeId, { month: prevM, year: prevY });
-      console.log(
-        `   ✔ Đã khóa bảng lương tháng ${prevM}/${prevY} (có thể test “Mở khóa” trên UI).`,
-      );
-    } catch (e) {
-      console.warn("   ⚠️  Không khóa được lương (bỏ qua):", (e as Error).message);
+      const itemCount = randomInt(1, 5);
+      const usedIndices = new Set<number>();
+      for (let j = 0; j < itemCount; j++) {
+        let idx: number;
+        do {
+          idx = randomInt(0, menuItems.length - 1);
+        } while (usedIndices.has(idx));
+        usedIndices.add(idx);
+        const mi = menuItems[idx];
+        orderItemEntries.push({
+          orderIdx,
+          statusId: st.id,
+          statusSnapshot: st.name,
+          nameSnapshot: mi.name,
+          priceSnapshot: Number(mi.price),
+          qty: randomInt(1, 3),
+        });
+      }
     }
   }
 
-  console.log(`   ✔ HRM: lịch, chấm công, đơn nghỉ${rich ? ", payroll lock tháng trước" : ""}.`);
+  await prisma.$transaction(async (tx) => {
+    const createdOrders = await Promise.all(
+      orderEntries.map((o) => tx.order.create({ data: o })),
+    );
+    await tx.orderItem.createMany({
+      data: orderItemEntries.map((item) => ({
+        orderId: createdOrders[item.orderIdx].id,
+        statusId: item.statusId,
+        statusSnapshot: item.statusSnapshot,
+        nameSnapshot: item.nameSnapshot,
+        priceSnapshot: item.priceSnapshot,
+        qty: item.qty,
+      })),
+    });
+  });
+
+  console.log(
+    `   ✔ ${Object.keys(menuData).length} DM, ${menuItems.length} món, ${areaNames.length} KV, ${allTableIds.length} bàn, ${totalOrders} đơn`,
+  );
+
+  return { tableIds: allTableIds, menuItems, orderStatuses };
+}
+
+async function seedExpenses(storeId: number) {
+  const now = new Date();
+  const today = new Date(
+    Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()),
+  );
+
+  const titles = [
+    "Nhập cà phê hạt Arabica",
+    "Nhập cà phê Robusta",
+    "Nhập sữa tươi Vinamilk",
+    "Nhập sữa đặc Ông Thọ",
+    "Nhập trà ô long",
+    "Nhập đào ngâm hộp",
+    "Nhập vải thiều hộp",
+    "Nhập đường cát",
+    "Nhập ly nhựa ống hút",
+    "Nhập bột bánh kem",
+    "Tiền điện tháng",
+    "Tiền nước",
+    "Tiền internet",
+    "Mua nước ngọt",
+    "Nhập đá viên",
+    "Bảo trì máy pha cà phê",
+    "Mua chén dĩa mới",
+    "Quảng cáo Facebook",
+    "Thuê ship giao hàng",
+    "Mua khăn giấy",
+    "Mua nước rửa chén",
+    "Mua hộp mang về",
+    "In tem logo",
+    "Thuê mặt bằng",
+    "Phí POS",
+    "Mua siro bơ sữa",
+    "Mua topping trân châu",
+    "Nhập thạch dừa",
+    "Mua kem tươi",
+    "Nhập bột cacao",
+    "Mua matcha bột",
+    "Nhập nước cốt dừa",
+    "Mua mật ong",
+    "Nhập tinh dầu vani",
+    "Mua chocolate đen",
+    "Nhập hạnh nhân lát",
+    "Mua trái cây tươi",
+    "Nhập bạc hà tươi",
+    "Mua gừng pha chế",
+    "Nhập sả tươi",
+    "Mua chanh dây đông lạnh",
+    "Nhập dâu tây",
+    "Mua việt quất",
+    "Nhập bánh flan",
+    "Mua thạch cà phê",
+    "Nhập khoai môn",
+    "Mua bơ sáp",
+    "Nhập dừa tươi",
+    "Mua xoài chín",
+    "Nhập cam tươi",
+  ];
+
+  const rows: Prisma.ExpenseCreateManyInput[] = [];
+
+  for (let dayOffset = 0; dayOffset < 30; dayOffset++) {
+    const dayCount = dayOffset < 3 ? randomInt(3, 5) : randomInt(1, 3);
+    for (let i = 0; i < dayCount; i++) {
+      const rawDate = new Date(today);
+      rawDate.setUTCDate(
+        rawDate.getUTCDate() - dayOffset + randomInt(0, Math.min(1, dayOffset)),
+      );
+
+      const amount = pick([
+        100000, 150000, 200000, 250000, 300000, 350000, 400000, 500000, 800000,
+        1000000, 1200000, 1500000, 2000000, 2500000, 3000000,
+      ]);
+      const title = pick(titles);
+      const createdAt = new Date(rawDate);
+      createdAt.setUTCHours(randomInt(7, 20), randomInt(0, 59), 0, 0);
+
+      rows.push({ storeId, title, amount, rawDate, createdAt });
+    }
+  }
+
+  await prisma.expense.createMany({ data: rows });
+  return rows.length;
 }
 
 async function main() {
-  console.log("Bắt đầu seed dữ liệu mẫu...");
+  console.log("🌱 Bắt đầu seed dữ liệu mẫu...\n");
 
-  // 1. Dọn dẹp toàn bộ dữ liệu cũ (Full Wipe)
-  console.log("🧹 Đang dọn dẹp toàn bộ dữ liệu cũ...");
-  const tablenames = await prisma.$queryRaw<
-    Array<{ tablename: string }>
-  >`SELECT tablename FROM pg_tables WHERE schemaname='public'`;
-
+  console.log("🧹 Dọn dẹp dữ liệu cũ...");
+  const tablenames = await prisma.$queryRaw<Array<{ tablename: string }>>`
+    SELECT tablename FROM pg_tables WHERE schemaname='public'
+  `;
   const tables = tablenames
     .map(({ tablename }) => tablename)
     .filter((name) => name !== "_prisma_migrations")
@@ -557,524 +1189,211 @@ async function main() {
     .join(", ");
 
   try {
-    await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${tables} RESTART IDENTITY CASCADE;`);
-    console.log("✨ Đã dọn dẹp sạch sẽ cơ sở dữ liệu.");
-  } catch (error) {
-    console.log("⚠️ Lỗi khi TRUNCATE, chuyển sang deleteMany...");
-    // Fallback if TRUNCATE fails
-    await prisma.userRole.deleteMany();
-    await prisma.rolePermission.deleteMany();
-    await prisma.storeUserRole.deleteMany();
-    await prisma.attendanceEditLog.deleteMany();
-    await prisma.attendance.deleteMany();
-    await prisma.payrollSnapshot.deleteMany();
-    await prisma.leaveRequest.deleteMany();
-    await prisma.scheduleOverride.deleteMany();
-    await prisma.orderItem.deleteMany();
-    await prisma.order.deleteMany();
-    await prisma.expense.deleteMany();
-    await prisma.table.deleteMany();
-    await prisma.area.deleteMany();
-    await prisma.menuItem.deleteMany();
-    await prisma.category.deleteMany();
-    await prisma.status.deleteMany();
-    await prisma.storeUser.deleteMany();
-    await prisma.store.deleteMany();
-    await prisma.user.deleteMany();
-    await prisma.role.deleteMany();
-    await prisma.permission.deleteMany();
+    await prisma.$executeRawUnsafe(
+      `TRUNCATE TABLE ${tables} RESTART IDENTITY CASCADE;`,
+    );
+  } catch {
+    console.log("   ⚠️ TRUNCATE lỗi, dùng deleteMany...");
+    for (const model of [
+      "userRole",
+      "rolePermission",
+      "storeUserRole",
+      "attendanceEditLog",
+      "attendance",
+      "payrollSnapshot",
+      "leaveRequest",
+      "scheduleOverride",
+      "orderItem",
+      "order",
+      "expense",
+      "table",
+      "area",
+      "menuItem",
+      "category",
+      "status",
+      "storeUser",
+      "storeRole",
+      "storeRolePermission",
+      "store",
+      "user",
+      "role",
+      "permission",
+    ] as const) {
+      await (prisma as any)[model].deleteMany();
+    }
   }
+  console.log("   ✔ Đã xóa dữ liệu cũ");
 
-  // 2. Đồng bộ RBAC (modules, permissions, roles mặc định)
   await bootstrapRbac();
-  console.log("🔐 Đã đồng bộ permissions & roles");
+  console.log("🔐 Đã đồng bộ RBAC\n");
 
   const passwordHash = await bcrypt.hash("password123", 12);
 
-  // 3. Tạo User mặc định (Admin)
-  const user = await prisma.user.create({
-    data: {
-      name: "Trần Trọng Nam",
-      phone: "0901234567",
-      passwordHash,
-    },
+  // ── Admin ──────────────────────────────────────────────────
+  const admin = await prisma.user.create({
+    data: { name: "Trần Trọng Nam", phone: "0901234567", passwordHash },
   });
-  console.log(`👤 User Admin: ${user.name}`);
-
-  // Gán role admin cho user mặc định
-  const adminRole = await prisma.role.findUnique({ where: { code: ROLE_DEFS.ADMIN.code } });
+  const adminRole = await prisma.role.findUnique({
+    where: { code: ROLE_DEFS.ADMIN.code },
+  });
   if (adminRole) {
     await prisma.userRole.create({
-      data: { userId: user.id, roleId: adminRole.id },
+      data: { userId: admin.id, roleId: adminRole.id },
     });
-    console.log(`👑 Đã gán role admin cho user ${user.name}`);
   }
+  console.log(`👤 Admin: ${admin.name} (0901234567)`);
 
-  // 4. Tạo Store mặc định
-  const store = await prisma.store.create({
+  // ── CỬA HÀNG 1: Orderly Coffee & Tea ───────────────────────
+  const store1 = await prisma.store.create({
     data: {
-      userId: user.id,
+      userId: admin.id,
       name: "Orderly Coffee & Tea",
-      address: "123 Đường Nguyễn Văn Linh, Quận 7, TP.HCM",
+      address: "123 Nguyễn Văn Linh, Quận 7, TP.HCM",
+      defaultWorkDays: [1, 2, 3, 4, 5, 6],
     },
   });
-  console.log(`🏪 Cửa hàng chính: ${store.name}`);
-
   await prisma.storeUser.create({
     data: {
-      userId: user.id,
-      storeId: store.id,
+      userId: admin.id,
+      storeId: store1.id,
       role: StoreUserRoleType.owner,
     },
   });
 
-  await seedCoffeeShopStaff(store.id, passwordHash);
+  const staff1 = await seedOrderlyCoffee(store1.id, passwordHash);
+  await seedScheduleOverrides(store1.id);
+  await seedStoreData(store1.id, "coffee");
+  const expCount1 = await seedExpenses(store1.id);
 
-  await seedHrDemoData({
-    storeId: store.id,
-    reviewerId: user.id,
-    rich: true,
-  });
+  const now = new Date();
+  const curY = now.getFullYear();
+  const curM = now.getMonth() + 1;
+  const { y: prevY, m: prevM } = prevMonthYear(curY, curM);
 
-  const ownerPhuc = await prisma.user.create({
-    data: {
-      name: "Võ Hồng Phúc",
-      phone: "0903456789",
-      passwordHash,
-    },
+  const attCur1 = await seedAttendance(store1.id, staff1, curY, curM);
+  const attPrev1 = await seedAttendance(store1.id, staff1, prevY, prevM);
+  const leaveCount1 = await seedLeaveRequests(store1.id, staff1, admin.id);
+
+  try {
+    await lockPayroll(store1.id, { month: prevM, year: prevY });
+    console.log(`   ✔ Đã khóa lương ${prevM}/${prevY}`);
+  } catch {
+    /* ok */
+  }
+
+  console.log(
+    `   📊 ${attCur1 + attPrev1} chấm công, ${leaveCount1} đơn nghỉ, ${expCount1} phiếu chi`,
+  );
+
+  // ── CỬA HÀNG 2: Trà Sữa Bon Bon ───────────────────────────
+  const owner2 = await prisma.user.create({
+    data: { name: "Võ Hồng Phúc", phone: "0903456789", passwordHash },
   });
-  const storeOwnerGlobalRole = await prisma.role.findUnique({
+  const storeOwnerRole = await prisma.role.findUnique({
     where: { code: ROLE_DEFS.STORE_OWNER.code },
   });
-  if (storeOwnerGlobalRole) {
+  if (storeOwnerRole) {
     await prisma.userRole.create({
-      data: { userId: ownerPhuc.id, roleId: storeOwnerGlobalRole.id },
+      data: { userId: owner2.id, roleId: storeOwnerRole.id },
     });
-    console.log(`👑 Đã gán role hệ thống "${ROLE_DEFS.STORE_OWNER.name}" cho ${ownerPhuc.name}`);
   }
 
   const store2 = await prisma.store.create({
     data: {
-      userId: ownerPhuc.id,
-      name: "Trà Sữa Bon Bon — Chi nhánh Lê Văn Sỹ",
+      userId: owner2.id,
+      name: "Trà Sữa Bon Bon",
       address: "415 Lê Văn Sỹ, Phường 12, Quận 3, TP.HCM",
+      defaultWorkDays: [1, 2, 3, 4, 5, 6],
     },
   });
-  console.log(`🏪 Cửa hàng thứ hai: ${store2.name}`);
-
   await prisma.storeUser.create({
     data: {
-      userId: ownerPhuc.id,
+      userId: owner2.id,
       storeId: store2.id,
       role: StoreUserRoleType.owner,
     },
   });
 
-  await seedTeaShopStaff(store2.id, passwordHash);
+  const staff2 = await seedBonBon(store2.id, passwordHash);
+  await seedStoreData(store2.id, "tea");
+  const expCount2 = await seedExpenses(store2.id);
+  const att2 = await seedAttendance(store2.id, staff2, curY, curM);
+  await seedLeaveRequests(store2.id, staff2, owner2.id);
+  console.log(`   📊 ${att2} chấm công, ${expCount2} phiếu chi`);
 
-  await seedHrDemoData({
-    storeId: store2.id,
-    reviewerId: ownerPhuc.id,
-    rich: false,
+  // ── CỬA HÀNG 3: Bánh Mì & Croissant ───────────────────────
+  const owner3 = await prisma.user.create({
+    data: { name: "Lê Thị Minh Tâm", phone: "0905678901", passwordHash },
   });
-
-  // Lặp qua tất cả các cửa hàng hiện có trong hệ thống để nạp danh mục, khu vực, món ăn, và phiếu nhập đồng nhất
-  const allStores = await prisma.store.findMany();
-  for (const s of allStores) {
-    console.log(`\n▶ Bắt đầu nạp dữ liệu cho cửa hàng: ${s.name}`);
-
-    // 3. Tạo Statuses chuẩn
-    await prisma.status.createMany({
-      data: [
-        { storeId: s.id, name: "Chờ xử lý", type: StatusType.start, sortOrder: 1 },
-        { storeId: s.id, name: "Đang pha chế", type: StatusType.mid, sortOrder: 5 },
-        { storeId: s.id, name: "Kiểm tra chất lượng", type: StatusType.mid, sortOrder: 10 },
-        { storeId: s.id, name: "Đóng gói", type: StatusType.mid, sortOrder: 15 },
-        { storeId: s.id, name: "Hoàn thành", type: StatusType.end, sortOrder: 20 },
-      ],
+  if (storeOwnerRole) {
+    await prisma.userRole.create({
+      data: { userId: owner3.id, roleId: storeOwnerRole.id },
     });
-
-    // 4. Tạo Categories
-    const catCoffee = await prisma.category.create({
-      data: { storeId: s.id, name: "Cà phê truyền thống", sortOrder: 1 },
-    });
-    const catMachine = await prisma.category.create({
-      data: { storeId: s.id, name: "Cà phê pha máy", sortOrder: 2 },
-    });
-    const catTea = await prisma.category.create({
-      data: { storeId: s.id, name: "Trà Trái cây & Trà Sữa", sortOrder: 3 },
-    });
-    const catIceBlended = await prisma.category.create({
-      data: { storeId: s.id, name: "Đá xay (Ice Blended)", sortOrder: 4 },
-    });
-    const catCake = await prisma.category.create({
-      data: { storeId: s.id, name: "Bánh ngọt & Đồ ăn nhẹ", sortOrder: 5 },
-    });
-
-    // 5. Tạo Menu Items
-    await prisma.menuItem.createMany({
-      data: [
-        // Cà phê truyền thống
-        { categoryId: catCoffee.id, name: "Cà phê Đen Đá", price: 29000 },
-        { categoryId: catCoffee.id, name: "Cà phê Sữa Đá", price: 35000 },
-        { categoryId: catCoffee.id, name: "Bạc Xỉu", price: 39000 },
-        { categoryId: catCoffee.id, name: "Cà phê Muối", price: 45000 },
-        { categoryId: catCoffee.id, name: "Cà phê Trứng", price: 55000 },
-        // Cà phê pha máy
-        { categoryId: catMachine.id, name: "Espresso", price: 35000 },
-        { categoryId: catMachine.id, name: "Americano", price: 40000 },
-        { categoryId: catMachine.id, name: "Cappuccino", price: 50000 },
-        { categoryId: catMachine.id, name: "Latte", price: 50000 },
-        { categoryId: catMachine.id, name: "Caramel Macchiato", price: 55000 },
-        // Trà Trái cây & Trà Sữa
-        { categoryId: catTea.id, name: "Trà Đào Cam Sả", price: 45000 },
-        { categoryId: catTea.id, name: "Trà Vải Nhiệt Đới", price: 45000 },
-        { categoryId: catTea.id, name: "Trà Olong Sen Vàng", price: 50000 },
-        {
-          categoryId: catTea.id,
-          name: "Trà Sữa Trân Châu Đường Đen",
-          price: 45000,
-        },
-        { categoryId: catTea.id, name: "Trà Sữa Nướng", price: 49000 },
-        // Đá xay
-        { categoryId: catIceBlended.id, name: "Matcha Đá Xay", price: 55000 },
-        { categoryId: catIceBlended.id, name: "Cookies & Cream", price: 55000 },
-        {
-          categoryId: catIceBlended.id,
-          name: "Chocolate Đá Xay",
-          price: 55000,
-        },
-        // Bánh ngọt
-        { categoryId: catCake.id, name: "Bánh Croissant bơ tỏi", price: 35000 },
-        { categoryId: catCake.id, name: "Tiramisu truyền thống", price: 45000 },
-        { categoryId: catCake.id, name: "Bánh Mousse Chanh Dây", price: 40000 },
-        { categoryId: catCake.id, name: "Bánh Cheesecake Dâu", price: 50000 },
-        { categoryId: catCake.id, name: "Hạt hướng dương", price: 15000 },
-      ],
-    });
-
-    // 6. Tạo Areas & Tables
-    const area1 = await prisma.area.create({
-      data: { storeId: s.id, name: "Tầng 1", sortOrder: 1 },
-    });
-    const area2 = await prisma.area.create({
-      data: { storeId: s.id, name: "Tầng 2", sortOrder: 2 },
-    });
-    const areaGarden = await prisma.area.create({
-      data: { storeId: s.id, name: "Sân vườn", sortOrder: 3 },
-    });
-    const areaBar = await prisma.area.create({
-      data: { storeId: s.id, name: "Quầy Bar", sortOrder: 4 },
-    });
-
-    await prisma.table.createMany({
-      data: [
-        // Tầng 1
-        { areaId: area1.id, name: "Bàn 101", sortOrder: 1 },
-        { areaId: area1.id, name: "Bàn 102", sortOrder: 2 },
-        { areaId: area1.id, name: "Bàn 103", sortOrder: 3 },
-        { areaId: area1.id, name: "Bàn 104", sortOrder: 4 },
-        { areaId: area1.id, name: "Bàn 105", sortOrder: 5 },
-        { areaId: area1.id, name: "Bàn 106", sortOrder: 6 },
-        // Tầng 2
-        { areaId: area2.id, name: "Bàn 201", sortOrder: 1 },
-        { areaId: area2.id, name: "Bàn 202", sortOrder: 2 },
-        { areaId: area2.id, name: "Bàn 203", sortOrder: 3 },
-        { areaId: area2.id, name: "Bàn 204", sortOrder: 4 },
-        { areaId: area2.id, name: "Bàn 205", sortOrder: 5 },
-        { areaId: area2.id, name: "Bàn 206", sortOrder: 6 },
-        { areaId: area2.id, name: "Bàn 207", sortOrder: 7 },
-        { areaId: area2.id, name: "Bàn 208", sortOrder: 8 },
-        // Sân vườn
-        { areaId: areaGarden.id, name: "Bàn SV1", sortOrder: 1 },
-        { areaId: areaGarden.id, name: "Bàn SV2", sortOrder: 2 },
-        { areaId: areaGarden.id, name: "Bàn SV3", sortOrder: 3 },
-        { areaId: areaGarden.id, name: "Bàn SV4", sortOrder: 4 },
-        { areaId: areaGarden.id, name: "Bàn SV5", sortOrder: 5 },
-        // Quầy Bar
-        { areaId: areaBar.id, name: "Ghế Bar 1", sortOrder: 1 },
-        { areaId: areaBar.id, name: "Ghế Bar 2", sortOrder: 2 },
-        { areaId: areaBar.id, name: "Ghế Bar 3", sortOrder: 3 },
-        { areaId: areaBar.id, name: "Ghế Bar 4", sortOrder: 4 },
-      ],
-    });
-
-    // 7. Tạo Expenses (phiếu chi)
-    const expenseTitles = [
-      "Nhập hạt cà phê Arabica Cầu Đất",
-      "Nhập hạt cà phê Robusta Đắk Lắk",
-      "Nhập sữa tươi tiệt trùng Vinamilk",
-      "Nhập sữa đặc Ngôi Sao Phương Nam",
-      "Nhập trà ô long hoa nhài",
-      "Nhập đào ngâm đóng hộp",
-      "Nhập vải thiều đóng hộp",
-      "Nhập đường cát trắng",
-      "Nhập ly nhựa và ống hút sinh học",
-      "Nhập bột bánh ngọt và kem béo",
-      "Thanh toán tiền điện tháng này",
-      "Thanh toán tiền nước",
-      "Thanh toán tiền internet",
-      "Lương nhân viên ca sáng",
-      "Lương nhân viên ca tối",
-      "Mua nước ngọt bổ sung",
-      "Nhập đá viên",
-      "Bảo trì bếp gas",
-      "Mua chén đũa mới",
-      "Chi phí quảng cáo Facebook",
-      "Thiết kế banner khai trương",
-      "Thuê ship giao hàng",
-      "Mua khăn giấy",
-      "Mua nước rửa chén",
-      "Mua hộp mang về",
-      "In tem logo cửa hàng",
-      "Mua ly nhựa và ống hút",
-      "Thuê mặt bằng",
-      "Phí duy trì phần mềm POS",
-    ];
-
-    const expenseEntries: Prisma.ExpenseCreateManyInput[] = [];
-    const now = new Date();
-
-    const utcMidnightDaysAgo = (days: number) =>
-      new Date(
-        Date.UTC(
-          now.getUTCFullYear(),
-          now.getUTCMonth(),
-          now.getUTCDate() - days,
-        ),
-      );
-
-    // 30 existing invoices
-    for (let dOffset = 0; dOffset < 10; dOffset++) {
-      const targetDate = utcMidnightDaysAgo(dOffset);
-
-      for (let i = 0; i < 3; i++) {
-        const title = expenseTitles[(dOffset * 3 + i) % expenseTitles.length];
-        const amount = (Math.floor(Math.random() * 15) + 5) * 100000;
-
-        const createdAt = new Date(targetDate.getTime());
-        createdAt.setHours(8 + i * 3, 0, 0, 0);
-
-        expenseEntries.push({
-          storeId: s.id,
-          title,
-          amount,
-          rawDate: targetDate,
-          createdAt,
-        });
-      }
-    }
-
-    // 80 additional expenses across more days
-    const moreTitles = [
-      "Mua cà phê hạt rang xay",
-      "Nhập siro bơ sữa",
-      "Mua topping trân châu",
-      "Nhập thạch dừa",
-      "Mua pudding đậu đỏ",
-      "Nhập sữa tươi không đường",
-      "Mua kem tươi đánh bông",
-      "Nhập bột cacao nguyên chất",
-      "Mua matcha bột",
-      "Nhập bánh quy ốc quế",
-      "Mua mứt hoa quả các loại",
-      "Nhập nước cốt dừa",
-      "Mua siro đường mía",
-      "Nhập mật ong rừng",
-      "Mua trà túi lọc các loại",
-      "Nhập cà phê hòa tan",
-      "Mua bột sữa đậu nành",
-      "Nhập tinh dầu vani",
-      "Mua chocolate đen",
-      "Nhập hạnh nhân lát",
-      "Mua bánh cookie vụn",
-      "Nhập dừa sấy khô",
-      "Mua siro dâu tây",
-      "Nhập bột rau câu",
-      "Mua đậu đỏ hầm sẵn",
-      "Nhập trân châu trắng",
-      "Mua trái cây tươi (dâu, việt quất)",
-      "Nhập bạc hà tươi",
-      "Mua gừng tươi pha chế",
-      "Nhập sả tươi",
-      "Mua chanh dây đông lạnh",
-      "Nhập matcha đá xay",
-      "Mua siro dừa",
-      "Nhập nước cốt chanh",
-      "Mua bột pudding",
-      "Nhập bánh flan",
-      "Mua thạch cà phê",
-      "Nhập hạt é",
-      "Mua hạt chia",
-      "Nhập nha đam",
-      "Mua bí đỏ cho sinh tố",
-      "Nhập khoai môn",
-      "Mua khoai lang tím",
-      "Nhập bơ sáp",
-      "Mua sầu riêng đông lạnh",
-      "Nhập dừa tươi",
-      "Mua xoài chín",
-      "Nhập cam tươi vắt",
-      "Mua bưởi da xanh",
-      "Nhập dâu tây đông lạnh",
-      "Mua việt quất đông lạnh",
-      "Nhập cherry nhập khẩu",
-      "Mua kiwi",
-      "Nhập táo xanh",
-      "Mua siro lựu",
-      "Nhập nước ép lựu đóng chai",
-      "Mua trà thảo mộc",
-      "Nhập bánh trung thu",
-      "Mua bánh mochi",
-      "Nhập bánh macaron",
-      "Mua bánh donut",
-      "Nhập bánh pancake",
-      "Mua bánh waffle",
-      "Nhập bánh crepe",
-      "Mua bánh bông lan cuộn",
-      "Nhập bánh su kem",
-      "Mua bánh tart trứng",
-      "Nhập bánh mì que bơ tỏi",
-      "Mua bánh pizza mini",
-      "Nhập bánh hamburger",
-      "Mua xúc xích Đức",
-      "Nhập phô mai con bò cười",
-      "Mua sốt mayonnaise",
-      "Nhập tương ớt",
-      "Mua tương cà",
-      "Nhập dầu oliu pha chế",
-      "Mua giấy bạc gói hàng",
-      "Nhập túi giấy kraft",
-      "Mua decal dán cửa hàng",
-    ];
-
-    // Spread expenses across last 30 days
-    for (let i = 0; i < 80; i++) {
-      const dayOffset = Math.floor(i / 3) % 30;
-      const targetDate = utcMidnightDaysAgo(dayOffset);
-
-      const amount = (Math.floor(Math.random() * 50) + 1) * 10000;
-      const createdAt = new Date(targetDate.getTime());
-      createdAt.setHours(7 + (i % 12), 0, 0, 0);
-
-      expenseEntries.push({
-        storeId: s.id,
-        title: moreTitles[i % moreTitles.length],
-        amount,
-        rawDate: targetDate,
-        createdAt,
-      });
-    }
-
-    await prisma.expense.createMany({ data: expenseEntries });
-
-    // 8. Tạo Orders (đơn hàng mẫu)
-    const menuItems = await prisma.menuItem.findMany({ where: { category: { storeId: s.id } } });
-    const orderStatuses = await prisma.status.findMany({
-      where: { storeId: s.id },
-      orderBy: { sortOrder: "asc" },
-    });
-    const orderTables = await prisma.table.findMany({
-      where: { area: { storeId: s.id } },
-      include: { area: true },
-    });
-
-    const orderEntries: {
-      storeId: number;
-      tableSnapshot: string | null;
-      statusId: number;
-      statusSnapshot: string;
-      createdAt: Date;
-    }[] = [];
-    const orderItemEntries: {
-      orderIdx: number;
-      statusId: number;
-      statusSnapshot: string | null;
-      nameSnapshot: string;
-      priceSnapshot: number;
-      qty: number;
-    }[] = [];
-
-    let totalOrders = 0;
-    for (const st of orderStatuses) {
-      const count = 5 + Math.floor(Math.random() * 11);
-      totalOrders += count;
-
-      for (let i = 0; i < count; i++) {
-        const orderIdx = orderEntries.length;
-
-        const hours = 7 + Math.floor(Math.random() * 11);
-        const minutes = Math.floor(Math.random() * 60);
-        const createdAt = new Date();
-        createdAt.setDate(createdAt.getDate() - Math.floor(orderIdx / 10) - 1);
-        createdAt.setHours(hours, minutes, 0, 0);
-
-        orderEntries.push({
-          storeId: s.id,
-          tableSnapshot: null,
-          statusId: st.id,
-          statusSnapshot: st.name,
-          createdAt,
-        });
-
-        const itemCount = 1 + Math.floor(Math.random() * 4);
-        const usedIndices = new Set<number>();
-        for (let j = 0; j < itemCount; j++) {
-          let idx: number;
-          do {
-            idx = Math.floor(Math.random() * menuItems.length);
-          } while (usedIndices.has(idx));
-          usedIndices.add(idx);
-
-          const mi = menuItems[idx];
-          const qty = 1 + Math.floor(Math.random() * 3);
-
-          orderItemEntries.push({
-            orderIdx,
-            statusId: st.id,
-            statusSnapshot: st.name,
-            nameSnapshot: mi.name,
-            priceSnapshot: Number(mi.price),
-            qty,
-          });
-        }
-      }
-    }
-
-    await prisma.$transaction(async (tx) => {
-      const createdOrders = await Promise.all(
-        orderEntries.map((o) =>
-          tx.order.create({ data: o }),
-        ),
-      );
-
-      await tx.orderItem.createMany({
-        data: orderItemEntries.map((item) => ({
-          orderId: createdOrders[item.orderIdx].id,
-          statusId: item.statusId,
-          statusSnapshot: item.statusSnapshot,
-          nameSnapshot: item.nameSnapshot,
-          priceSnapshot: item.priceSnapshot,
-          qty: item.qty,
-        })),
-      });
-    });
-
-    console.log(
-      `✔ Đã nạp danh mục, thực đơn phong phú, 4 khu vực bàn, ${expenseEntries.length} phiếu chi và ${totalOrders} đơn hàng mẫu.`,
-    );
   }
 
+  const store3 = await prisma.store.create({
+    data: {
+      userId: owner3.id,
+      name: "Bánh Mì & Croissant — Nguyễn Huệ",
+      address: "50 Nguyễn Huệ, Quận 1, TP.HCM",
+      defaultWorkDays: [1, 2, 3, 4, 5, 6, 7],
+    },
+  });
+  await prisma.storeUser.create({
+    data: {
+      userId: owner3.id,
+      storeId: store3.id,
+      role: StoreUserRoleType.owner,
+    },
+  });
+
+  const staff3 = await seedBakery(store3.id, passwordHash);
+  await seedStoreData(store3.id, "bakery");
+  const expCount3 = await seedExpenses(store3.id);
+  const att3 = await seedAttendance(store3.id, staff3, curY, curM);
+  await seedLeaveRequests(store3.id, staff3, owner3.id);
+  console.log(`   📊 ${att3} chấm công, ${expCount3} phiếu chi`);
+
+  // ── Tổng kết ───────────────────────────────────────────────
+  const allUsers = await prisma.user.count();
+  const allStores = await prisma.store.count();
+  const allEmployees = await prisma.storeUser.count();
+  const allAttendances = await prisma.attendance.count();
+  const allLeaves = await prisma.leaveRequest.count();
+  const allOrders = await prisma.order.count();
+  const allExpenses = await prisma.expense.count();
+  const allMenuItems = await prisma.menuItem.count();
+  const allTables = await prisma.table.count();
+
+  console.log(`\n${"=".repeat(56)}`);
+  console.log("✅ SEED HOÀN TẤT");
+  console.log(`${"=".repeat(56)}`);
+  console.log(`   👤 Users:          ${allUsers}`);
+  console.log(`   🏪 Cửa hàng:       ${allStores}`);
+  console.log(`   👥 Nhân viên:      ${allEmployees}`);
+  console.log(`   📋 Chấm công:      ${allAttendances}`);
+  console.log(`   📝 Đơn nghỉ:       ${allLeaves}`);
+  console.log(`   🧾 Đơn hàng:       ${allOrders}`);
+  console.log(`   💰 Phiếu chi:      ${allExpenses}`);
+  console.log(`   🍽️  Món:           ${allMenuItems}`);
+  console.log(`   🪑 Bàn:            ${allTables}`);
+
+  console.log(`\n${"─".repeat(56)}`);
+  console.log("📞 THÔNG TIN ĐĂNG NHẬP");
+  console.log(`${"─".repeat(56)}`);
+  console.log(`   Admin / CH1:       0901234567 — password123`);
+  console.log(`   Chủ CH2:          0903456789 — password123`);
+  console.log(`   Chủ CH3:          0905678901 — password123`);
   console.log(
-    "\n✅ Seed dữ liệu mẫu hoàn tất!\n" +
-      "   Đăng nhập admin / chủ CH1: 0901234567 — password123\n" +
-      "   Chủ CH2 (dashboard chủ cửa hàng): 0903456789 — password123\n" +
-      "   Nhân viên Orderly Coffee: 0902345678 … 0902345683 — password123\n" +
-      "   Nhân viên Bon Bon: 0903456790, 0903456791 — password123\n" +
-      "\n   HRM: CH1 — lịch T2–T7 + OFF (thứ 4 đầu tháng) + CN bù ca (nếu có); chấm công đủ loại;\n" +
-      "   đơn nghỉ PENDING / APPROVED / REJECTED; lương tháng trước đã KHÓA (mở khóa trên app để test).\n" +
-      "   CH2 — dữ liệu tối thiểu. Thu ngân / Pha chế / Phục vụ: quét QR + tạo đơn nghỉ.",
+    `   Nhân viên CH1:    ${VIETNAMESE_PHONES.slice(0, 6).join(", ")} — password123`,
   );
+  console.log(
+    `   Nhân viên CH2:    ${VIETNAMESE_PHONES.slice(6, 9).join(", ")} — password123`,
+  );
+  console.log(
+    `   Nhân viên CH3:    ${VIETNAMESE_PHONES.slice(9, 13).join(", ")} — password123`,
+  );
+  console.log(`${"=".repeat(56)}\n`);
 }
 
 main()

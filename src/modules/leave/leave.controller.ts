@@ -11,6 +11,15 @@ export async function list(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+export async function myList(req: Request, res: Response, next: NextFunction) {
+  try {
+    const rows = await service.listMyLeaves(req.store!.id, req.user!.id, req.query as any);
+    sendSuccess(res, rows);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
     const row = await service.createLeave(req.store!.id, req.user!.id, req.body);

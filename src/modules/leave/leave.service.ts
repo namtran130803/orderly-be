@@ -29,16 +29,33 @@ async function assertPayrollUnlockedForRange(storeId: number, fromStr: string, t
   }
 }
 
+const leaveIncludes = {
+  employee: { include: { user: { select: { id: true, name: true, phone: true } } } },
+  reviewer: { select: { id: true, name: true } },
+} as const;
+
 export async function listLeaves(storeId: number, query: LeaveQueryDto) {
+  return prisma.leaveRequest.findMany({
+    where: { storeId, ...(query.status ? { status: query.status } : {}) },
+    include: leaveIncludes,
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
+export async function listMyLeaves(storeId: number, userId: number, query: LeaveQueryDto) {
+  const su = await prisma.storeUser.findFirst({
+    where: { storeId, userId },
+    select: { id: true },
+  });
+  if (!su) throw ApiError.forbidden('Bạn không phải nhân viên cửa hàng này');
+
   return prisma.leaveRequest.findMany({
     where: {
       storeId,
+      employeeId: su.id,
       ...(query.status ? { status: query.status } : {}),
     },
-    include: {
-      employee: { include: { user: { select: { id: true, name: true, phone: true } } } },
-      reviewer: { select: { id: true, name: true } },
-    },
+    include: leaveIncludes,
     orderBy: { createdAt: 'desc' },
   });
 }

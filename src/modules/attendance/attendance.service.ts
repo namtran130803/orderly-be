@@ -18,7 +18,7 @@ import {
 import { SCAN_COOLDOWN_MS } from '@/lib/attendance-constants';
 import { verifyAttendanceQrToken } from '@/lib/jwt';
 import type {
-  AttendanceQueryDto,
+  MonthYearQueryDto,
   CreateManualAttendanceDto,
   PatchAttendanceDto,
 } from '@/modules/attendance/attendance.schema';
@@ -141,21 +141,23 @@ function mapRowToRuntime(
   }
 }
 
-export async function listAttendance(storeId: number, query: AttendanceQueryDto) {
+async function buildAttendanceGrid(
+  storeId: number,
+  year: number,
+  month: number,
+  employeeIds?: number[],
+) {
   const store = await prisma.store.findUnique({
     where: { id: storeId },
     select: { defaultWorkDays: true },
   });
   if (!store) throw ApiError.notFound('Store');
 
-  const overrides = await loadOverridesForMonth(storeId, query.year, query.month);
-  const days = enumerateMonthDays(query.year, query.month);
+  const overrides = await loadOverridesForMonth(storeId, year, month);
+  const days = enumerateMonthDays(year, month);
 
   const employees = await prisma.storeUser.findMany({
-    where: {
-      storeId,
-      ...(query.employeeId ? { id: query.employeeId } : {}),
-    },
+    where: { storeId, ...(employeeIds ? { id: { in: employeeIds } } : {}) },
     include: {
       user: { select: { id: true, name: true, phone: true } },
     },
@@ -178,15 +180,15 @@ export async function listAttendance(storeId: number, query: AttendanceQueryDto)
     byEmpDate.set(key, r);
   }
 
-    return {
-      month: query.month,
-      year: query.year,
-      defaultWorkDays: store.defaultWorkDays,
-      employees: employees.map((emp) => {
-        const effDays = effectiveWorkDaysForEmployee(store.defaultWorkDays, emp.workDays);
-        const cells = days.map((d) => {
-          const row = byEmpDate.get(`${emp.id}|${d}`) ?? null;
-          const runtime = mapRowToRuntime(d, effDays, overrides, row);
+  return {
+    month,
+    year,
+    defaultWorkDays: store.defaultWorkDays,
+    employees: employees.map((emp) => {
+      const effDays = effectiveWorkDaysForEmployee(store.defaultWorkDays, emp.workDays);
+      const cells = days.map((d) => {
+        const row = byEmpDate.get(`${emp.id}|${d}`) ?? null;
+        const runtime = mapRowToRuntime(d, effDays, overrides, row);
         return {
           date: d,
           runtime,
@@ -213,6 +215,38 @@ export async function listAttendance(storeId: number, query: AttendanceQueryDto)
       };
     }),
   };
+}
+
+export async function listAttendance(storeId: number, year: number, month: number) {
+  return buildAttendanceGrid(storeId, year, month);
+}
+
+export async function getEmployeeAttendance(
+  storeId: number,
+  employeeId: number,
+  year: number,
+  month: number,
+) {
+  const su = await prisma.storeUser.findFirst({
+    where: { id: employeeId, storeId },
+    select: { id: true },
+  });
+  if (!su) throw ApiError.notFound('Nhân viên');
+  return buildAttendanceGrid(storeId, year, month, [employeeId]);
+}
+
+export async function getMyAttendance(
+  storeId: number,
+  userId: number,
+  year: number,
+  month: number,
+) {
+  const su = await prisma.storeUser.findFirst({
+    where: { storeId, userId },
+    select: { id: true },
+  });
+  if (!su) throw ApiError.forbidden('Bạn không phải nhân viên cửa hàng này');
+  return buildAttendanceGrid(storeId, year, month, [su.id]);
 }
 
 export async function createManualAttendance(

@@ -17,8 +17,15 @@ const router = Router({ mergeParams: true });
 router.use(authenticate, requireStoreAccess);
 
 router.get(
+  '/me',
+  validate(storeParamsSchema, 'params'),
+  validate(leaveQuerySchema, 'query'),
+  controller.myList,
+);
+
+router.get(
   '/',
-  requirePermission(PERMS.leave.view),
+  requirePermission(PERMS.leave.list),
   validate(storeParamsSchema, 'params'),
   validate(leaveQuerySchema, 'query'),
   controller.list,
@@ -34,14 +41,14 @@ router.post(
 
 router.patch(
   '/:leaveId/approve',
-  requirePermission(PERMS.leave.manage),
+  requirePermission(PERMS.leave.approve),
   validate(leaveIdParamsSchema, 'params'),
   controller.approve,
 );
 
 router.patch(
   '/:leaveId/reject',
-  requirePermission(PERMS.leave.manage),
+  requirePermission(PERMS.leave.reject),
   validate(leaveIdParamsSchema, 'params'),
   controller.reject,
 );

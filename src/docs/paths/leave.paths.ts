@@ -23,10 +23,35 @@ const statusFilter = {
 };
 
 export const leavePaths: PathsObject = {
+  '/api/stores/{storeId}/leave/me': {
+    get: {
+      tags: ['Leave'],
+      summary: 'Đơn nghỉ của tôi',
+      parameters: [storeIdParam, statusFilter],
+      responses: {
+        200: {
+          description: 'Danh sách',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  success: { type: 'boolean', example: true },
+                  data: { type: 'array', items: { $ref: '#/components/schemas/LeaveRequestModel' } },
+                  message: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+        ...errorResponses(401, 403),
+      },
+    },
+  },
   '/api/stores/{storeId}/leave': {
     get: {
       tags: ['Leave'],
-      summary: 'Danh sách đơn nghỉ',
+      summary: 'Danh sách tất cả đơn nghỉ',
       parameters: [storeIdParam, statusFilter],
       responses: {
         200: {

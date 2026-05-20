@@ -11,10 +11,10 @@ export async function preview(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-export async function lock(req: Request, res: Response, next: NextFunction) {
+export async function myDetail(req: Request, res: Response, next: NextFunction) {
   try {
-    const rows = await service.lockPayroll(req.store!.id, req.query as any);
-    sendSuccess(res, rows, 'Đã khóa kỳ lương', 201);
+    const data = await service.getMyPayrollDetail(req.store!.id, req.user!.id, req.query as any);
+    sendSuccess(res, data);
   } catch (err) {
     next(err);
   }
@@ -30,6 +30,15 @@ export async function employeeDetail(req: Request, res: Response, next: NextFunc
       req.query as any,
     );
     sendSuccess(res, data);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function lock(req: Request, res: Response, next: NextFunction) {
+  try {
+    const rows = await service.lockPayroll(req.store!.id, req.query as any);
+    sendSuccess(res, rows, 'Đã khóa kỳ lương', 201);
   } catch (err) {
     next(err);
   }

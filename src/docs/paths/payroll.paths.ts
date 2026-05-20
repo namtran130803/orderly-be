@@ -18,6 +18,32 @@ const employeeIdParam = {
 };
 
 export const payrollPaths: PathsObject = {
+  '/api/stores/{storeId}/payroll/me': {
+    get: {
+      tags: ['Payroll'],
+      summary: 'Bảng lương của tôi',
+      description: 'Chi tiết tính lương cho tài khoản đang đăng nhập.',
+      parameters: [storeIdParam, monthQuery, yearQuery],
+      responses: {
+        200: {
+          description: 'Chi tiết lương',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  success: { type: 'boolean', example: true },
+                  data: { $ref: '#/components/schemas/PayrollEmployeeDetailResponse' },
+                  message: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+        ...errorResponses(401, 403),
+      },
+    },
+  },
   '/api/stores/{storeId}/payroll': {
     get: {
       tags: ['Payroll'],

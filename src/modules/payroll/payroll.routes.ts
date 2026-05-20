@@ -16,8 +16,15 @@ const router = Router({ mergeParams: true });
 router.use(authenticate, requireStoreAccess);
 
 router.get(
+  '/me',
+  validate(storeParamsSchema, 'params'),
+  validate(payrollMonthQuerySchema, 'query'),
+  controller.myDetail,
+);
+
+router.get(
   '/',
-  requirePermission(PERMS.payroll.view),
+  requirePermission(PERMS.payroll.preview),
   validate(storeParamsSchema, 'params'),
   validate(payrollMonthQuerySchema, 'query'),
   controller.preview,
@@ -25,7 +32,7 @@ router.get(
 
 router.get(
   '/employees/:employeeId',
-  requirePermission(PERMS.payroll.view),
+  requirePermission(PERMS.payroll.detail),
   validate(payrollEmployeeParamsSchema, 'params'),
   validate(payrollMonthQuerySchema, 'query'),
   controller.employeeDetail,
@@ -41,7 +48,7 @@ router.post(
 
 router.delete(
   '/lock',
-  requirePermission(PERMS.payroll.lock),
+  requirePermission(PERMS.payroll.unlock),
   validate(storeParamsSchema, 'params'),
   validate(payrollMonthQuerySchema, 'query'),
   controller.unlock,

@@ -15,15 +15,16 @@ const attendanceIdParam = {
   schema: { type: 'integer' as const },
 };
 
+const employeeIdParam = {
+  name: 'employeeId',
+  in: 'path' as const,
+  required: true,
+  schema: { type: 'integer' as const },
+  description: 'Store user id của nhân viên',
+};
+
 const monthQuery = { name: 'month', in: 'query' as const, required: true, schema: { type: 'integer' as const, minimum: 1, maximum: 12 } };
 const yearQuery = { name: 'year', in: 'query' as const, required: true, schema: { type: 'integer' as const, minimum: 2000, maximum: 2100 } };
-const employeeIdQuery = {
-  name: 'employeeId',
-  in: 'query' as const,
-  required: false,
-  schema: { type: 'integer' as const },
-  description: 'Lọc một nhân viên (store user id)',
-};
 
 export const attendancePaths: PathsObject = {
   '/api/stores/{storeId}/attendance/qr-token': {
@@ -58,11 +59,61 @@ export const attendancePaths: PathsObject = {
       },
     },
   },
+  '/api/stores/{storeId}/attendance/me': {
+    get: {
+      tags: ['Attendance'],
+      summary: 'Chấm công của tôi theo tháng',
+      parameters: [storeIdParam, monthQuery, yearQuery],
+      responses: {
+        200: {
+          description: 'Lưới chấm công của tài khoản đang đăng nhập',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  success: { type: 'boolean', example: true },
+                  data: { $ref: '#/components/schemas/AttendanceMonthReport' },
+                  message: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+        ...errorResponses(401, 403),
+      },
+    },
+  },
+  '/api/stores/{storeId}/attendance/employees/{employeeId}': {
+    get: {
+      tags: ['Attendance'],
+      summary: 'Chi tiết chấm công một nhân viên theo tháng',
+      parameters: [storeIdParam, employeeIdParam, monthQuery, yearQuery],
+      responses: {
+        200: {
+          description: 'Lưới chấm công của một nhân viên',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  success: { type: 'boolean', example: true },
+                  data: { $ref: '#/components/schemas/AttendanceMonthReport' },
+                  message: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+        ...errorResponses(401, 403, 404),
+      },
+    },
+  },
   '/api/stores/{storeId}/attendance': {
     get: {
       tags: ['Attendance'],
-      summary: 'Bảng chấm công theo tháng',
-      parameters: [storeIdParam, monthQuery, yearQuery, employeeIdQuery],
+      summary: 'Bảng chấm công toàn bộ nhân viên theo tháng',
+      parameters: [storeIdParam, monthQuery, yearQuery],
       responses: {
         200: {
           description: 'Lưới theo nhân viên + ngày',

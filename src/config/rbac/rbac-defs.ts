@@ -96,8 +96,11 @@ export const PERMS = {
     stats: "dashboard.stats",
   },
   attendance: {
-    view: "attendance.view",
-    manage: "attendance.manage",
+    list: "attendance.list",
+    detail: "attendance.detail",
+    create: "attendance.create",
+    edit: "attendance.edit",
+    qr: "attendance.qr",
     scan: "attendance.scan",
   },
   schedule: {
@@ -105,13 +108,16 @@ export const PERMS = {
     manage: "schedule.manage",
   },
   leave: {
-    view: "leave.view",
+    list: "leave.list",
     create: "leave.create",
-    manage: "leave.manage",
+    approve: "leave.approve",
+    reject: "leave.reject",
   },
   payroll: {
-    view: "payroll.view",
+    preview: "payroll.preview",
+    detail: "payroll.detail",
     lock: "payroll.lock",
+    unlock: "payroll.unlock",
   },
 } as const;
 
@@ -257,9 +263,12 @@ export const MODULE_DEFS: ModuleDef[] = [
     code: "attendance",
     name: "Chấm công",
     apis: [
-      { code: PERMS.attendance.view, name: "Xem" },
-      { code: PERMS.attendance.manage, name: "Quản lý" },
-      { code: PERMS.attendance.scan, name: "Quét / QR" },
+      { code: PERMS.attendance.list, name: "Xem tất cả" },
+      { code: PERMS.attendance.detail, name: "Xem chi tiết nhân viên" },
+      { code: PERMS.attendance.create, name: "Thêm" },
+      { code: PERMS.attendance.edit, name: "Sửa" },
+      { code: PERMS.attendance.qr, name: "Tạo QR" },
+      { code: PERMS.attendance.scan, name: "Quét QR" },
     ],
   },
   {
@@ -274,17 +283,21 @@ export const MODULE_DEFS: ModuleDef[] = [
     code: "leave",
     name: "Nghỉ phép",
     apis: [
-      { code: PERMS.leave.view, name: "Xem" },
+      { code: PERMS.leave.list, name: "Xem tất cả" },
       { code: PERMS.leave.create, name: "Tạo đơn" },
-      { code: PERMS.leave.manage, name: "Duyệt / từ chối" },
+      { code: PERMS.leave.approve, name: "Duyệt" },
+      { code: PERMS.leave.reject, name: "Từ chối" },
     ],
   },
   {
     code: "payroll",
     name: "Bảng lương",
     apis: [
-      { code: PERMS.payroll.view, name: "Xem" },
-      { code: PERMS.payroll.lock, name: "Khóa / mở" },
+      { code: PERMS.payroll.preview, name: "Xem tất cả" },
+      { code: PERMS.payroll.detail, name: "Xem chi tiết nhân viên" },
+
+      { code: PERMS.payroll.lock, name: "Khóa" },
+      { code: PERMS.payroll.unlock, name: "Mở khóa" },
     ],
   },
 ];
@@ -351,16 +364,22 @@ export const STORE_OWNER_PERMS: string[] = [
   // dashboard
   PERMS.dashboard.stats,
   // attendance / schedule / leave / payroll
-  PERMS.attendance.view,
-  PERMS.attendance.manage,
+  PERMS.attendance.list,
+  PERMS.attendance.detail,
+  PERMS.attendance.create,
+  PERMS.attendance.edit,
+  PERMS.attendance.qr,
   PERMS.attendance.scan,
   PERMS.schedule.view,
   PERMS.schedule.manage,
-  PERMS.leave.view,
+  PERMS.leave.list,
   PERMS.leave.create,
-  PERMS.leave.manage,
-  PERMS.payroll.view,
+  PERMS.leave.approve,
+  PERMS.leave.reject,
+  PERMS.payroll.preview,
+  PERMS.payroll.detail,
   PERMS.payroll.lock,
+  PERMS.payroll.unlock,
 ];
 
 export const ROLE_DEFS = {

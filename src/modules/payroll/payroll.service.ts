@@ -139,6 +139,19 @@ export async function unlockPayroll(storeId: number, q: PayrollMonthQueryDto) {
   });
 }
 
+export async function getMyPayrollDetail(
+  storeId: number,
+  userId: number,
+  q: PayrollMonthQueryDto,
+) {
+  const su = await prisma.storeUser.findFirst({
+    where: { storeId, userId },
+    select: { id: true },
+  });
+  if (!su) throw ApiError.forbidden('Bạn không phải nhân viên cửa hàng này');
+  return getPayrollEmployeeDetail(storeId, su.id, q);
+}
+
 /** Chi tiết tính lương một nhân viên — dùng cho màn giải thích công thức. */
 export async function getPayrollEmployeeDetail(
   storeId: number,
