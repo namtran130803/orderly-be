@@ -1,7 +1,7 @@
 import { prisma } from '@/config/prisma';
 import { ApiError } from '@/lib/response';
 import type { UpdateDefaultWorkDaysDto, CreateOverrideDto } from '@/modules/schedule/schedule.schema';
-import { startOfVnDayFromDateString } from '@/lib/date-vn';
+import { formatVnDateString, startOfVnDayFromDateString } from '@/lib/date-vn';
 import type { OverrideMap } from '@/lib/schedule-helpers';
 
 export async function getSchedule(storeId: number) {
@@ -20,7 +20,7 @@ export async function getSchedule(storeId: number) {
     defaultWorkDays: store.defaultWorkDays,
     overrides: overrides.map((o) => ({
       id: o.id,
-      date: o.date.toISOString().slice(0, 10),
+      date: formatVnDateString(o.date),
       type: o.type,
     })),
   };
@@ -64,8 +64,13 @@ export async function loadOverridesForMonth(
   year: number,
   month: number,
 ): Promise<OverrideMap> {
-  const first = new Date(Date.UTC(year, month - 1, 1));
-  const last = new Date(Date.UTC(year, month, 0));
+  // Dùng ngày theo timezone VN +07:00
+  const firstDayStr = `${year}-${String(month).padStart(2, '0')}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const lastDayStr = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+  
+  const first = startOfVnDayFromDateString(firstDayStr);
+  const last = startOfVnDayFromDateString(lastDayStr);
 
   const rows = await prisma.scheduleOverride.findMany({
     where: {
@@ -76,7 +81,7 @@ export async function loadOverridesForMonth(
 
   const map: OverrideMap = new Map();
   for (const r of rows) {
-    map.set(r.date.toISOString().slice(0, 10), r.type);
+    map.set(formatVnDateString(r.date), r.type);
   }
   return map;
 }

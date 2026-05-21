@@ -43,7 +43,7 @@ export const attendancePaths: PathsObject = {
       tags: ['Attendance'],
       summary: 'Chấm vào / ra bằng QR',
       description:
-        'Lần đầu trong ngày: tạo bản ghi check-in. Lần sau: cập nhật check-out và phút làm. 409 nếu quét quá nhanh (cooldown) hoặc đã đủ ca trong ngày.',
+        'Lần đầu trong ngày: tạo bản ghi check-in. Lần sau: cập nhật check-out và phút làm. 409 nếu đã đủ ca trong ngày.',
       parameters: [storeIdParam],
       requestBody: {
         required: true,

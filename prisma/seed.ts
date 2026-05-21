@@ -26,50 +26,67 @@ const SHIFT_LEAD_EXCLUDE = new Set<string>([
   PERMS.expenses.delete,
 ]);
 
+// ============================================
+// QUYỀN NHÂN VIÊN THEO VAI TRÒ
+// ============================================
+
+// ============================================
+// QUYỀN XEM CHUNG CHO TẤT CẢ NHÂN VIÊN
+// ============================================
+const PERMS_EMPLOYEE_VIEW = [
+  PERMS.areas.list,           // Xem khu vực
+  PERMS.categories.list,      // Xem danh mục menu
+  PERMS.menu_items.list,      // Xem món
+  PERMS.tables.list,          // Xem bàn
+  PERMS.statuses.list,        // Xem quy trình/trạng thái đơn
+  PERMS.schedule.view,        // Xem lịch làm việc
+  PERMS.stores.role_modules,  // Xem mô-đun chức năng
+];
+
+/** Thu ngân: Xem menu/bàn, tạo và quản lý đơn hàng, chấm công, xin nghỉ */
 const PERMS_THU_NGAN: string[] = [
-  PERMS.categories.list,
-  PERMS.menu_items.list,
-  PERMS.tables.list,
-  PERMS.tables.update,
-  PERMS.orders.list,
-  PERMS.orders.create,
-  PERMS.orders.detail,
-  PERMS.orders.update,
-  PERMS.orders.advance,
-  PERMS.orders.revert,
-  PERMS.attendance.qr,
-  PERMS.attendance.scan,
-  PERMS.attendance.list,
-  PERMS.leave.list,
-  PERMS.leave.create,
+  ...PERMS_EMPLOYEE_VIEW,
+  PERMS.tables.update,        // Cập nhật trạng thái bàn
+  PERMS.orders.list,          // Xem danh sách đơn
+  PERMS.orders.create,        // Tạo đơn hàng
+  PERMS.orders.detail,        // Xem chi tiết đơn
+  PERMS.orders.update,        // Sửa đơn
+  PERMS.orders.advance,       // Chuyển trạng thái đơn
+  PERMS.orders.revert,        // Hoàn tác đơn
+  PERMS.attendance.scan,      // Quét QR chấm công (nhân viên tự chấm)
+  PERMS.leave.create,         // Tạo đơn nghỉ phép
+  // Lưu ý:
+  // - attendance.qr (tạo QR): chỉ Quản lý ca / Chủ cửa hàng
+  // - attendance.list, leave.list, payroll.list: quyền quản lý xem tất cả
+  // - Nhân viên tự xem dữ liệu của mình qua các endpoint /me
 ];
 
+/** Pha chế: Xem và cập nhật đơn, chuyển trạng thái */
 const PERMS_PHA_CHE: string[] = [
-  PERMS.statuses.list,
-  PERMS.menu_items.list,
-  PERMS.orders.list,
-  PERMS.orders.detail,
-  PERMS.orders.update,
-  PERMS.orders.advance,
-  PERMS.orders.revert,
-  PERMS.attendance.scan,
-  PERMS.leave.create,
+  ...PERMS_EMPLOYEE_VIEW,
+  PERMS.orders.list,          // Xem đơn hàng
+  PERMS.orders.detail,        // Xem chi tiết đơn
+  PERMS.orders.update,        // Cập nhật đơn
+  PERMS.orders.advance,       // Chuyển trạng thái đơn
+  PERMS.orders.revert,        // Hoàn tác
+  PERMS.attendance.scan,      // Chấm công
+  PERMS.leave.create,         // Xin nghỉ phép
 ];
 
+/** Phục vụ: Quản lý bàn, tạo đơn, chấm công */
 const PERMS_PHUC_VU: string[] = [
-  PERMS.areas.list,
-  PERMS.tables.list,
-  PERMS.tables.update,
-  PERMS.orders.list,
-  PERMS.orders.create,
-  PERMS.orders.detail,
-  PERMS.attendance.scan,
-  PERMS.leave.create,
+  ...PERMS_EMPLOYEE_VIEW,
+  PERMS.tables.update,        // Cập nhật bàn
+  PERMS.orders.list,          // Xem đơn
+  PERMS.orders.create,        // Tạo đơn (gọi món)
+  PERMS.orders.detail,        // Xem chi tiết
+  PERMS.attendance.scan,      // Chấm công
+  PERMS.leave.create,         // Xin nghỉ phép
 ];
 
+/** Thợ làm bánh: Tương tự pha chế - làm việc trong bếp */
 const PERMS_BAKER: string[] = [
-  PERMS.statuses.list,
-  PERMS.menu_items.list,
+  ...PERMS_EMPLOYEE_VIEW,
   PERMS.orders.list,
   PERMS.orders.detail,
   PERMS.orders.update,
@@ -79,8 +96,9 @@ const PERMS_BAKER: string[] = [
   PERMS.leave.create,
 ];
 
+/** Barista: Pha cà phê, tạo đơn, quản lý trạng thái */
 const PERMS_BARISTA: string[] = [
-  PERMS.menu_items.list,
+  ...PERMS_EMPLOYEE_VIEW,
   PERMS.orders.list,
   PERMS.orders.create,
   PERMS.orders.detail,
@@ -165,8 +183,9 @@ async function addEmployeeToStore(
 }
 
 function vnDateOnly(y: number, month: number, day: number): Date {
+  // Noon UTC — tránh lệch ngày khi lưu @db.Date
   return new Date(
-    `${y}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T00:00:00.000+07:00`,
+    `${y}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T12:00:00.000Z`,
   );
 }
 
@@ -184,6 +203,18 @@ function vnDateTime(
 
 function daysInMonth(y: number, month: number): number {
   return new Date(y, month, 0).getDate();
+}
+
+/** Ngày hôm nay theo timezone VN (YYYY-MM-DD) */
+function todayVnDateString(): string {
+  const now = new Date();
+  // Tính ngày theo VN: cộng 7 giờ offset, sau đó lấy UTC parts
+  const vnOffsetMs = 7 * 60 * 60 * 1000;
+  const vnTime = new Date(now.getTime() + vnOffsetMs);
+  const y = vnTime.getUTCFullYear();
+  const m = String(vnTime.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(vnTime.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function prevMonthYear(y: number, m: number) {
@@ -490,9 +521,9 @@ async function seedBakery(storeId: number, passwordHash: string) {
 }
 
 async function seedScheduleOverrides(storeId: number) {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth() + 1;
+  // Lấy ngày hôm nay theo timezone VN
+  const todayStr = todayVnDateString();
+  const [y, m] = todayStr.split('-').map(Number);
 
   for (let d = 1; d <= daysInMonth(y, m); d++) {
     const dt = new Date(y, m - 1, d);
@@ -529,6 +560,17 @@ async function seedAttendance(
   y: number,
   m: number,
 ) {
+  // Lấy ngày hôm nay theo timezone VN (+07:00)
+  const todayStr = todayVnDateString();
+  const [todayY, todayM, todayD] = todayStr.split('-').map(Number);
+  const todayDate = new Date(todayY, todayM - 1, todayD);
+  const seedMonthDate = new Date(y, m - 1, 1);
+
+  // Nếu tháng seed là tháng tương lai → không seed
+  if (seedMonthDate > todayDate) {
+    return 0;
+  }
+
   const configs = [
     {
       empIdx: 0,
@@ -595,6 +637,11 @@ async function seedAttendance(
   const rows: Prisma.AttendanceCreateManyInput[] = [];
   const dim = daysInMonth(y, m);
 
+  // Chỉ seed đến ngày hiện tại hoặc cuối tháng
+  const maxDay = m === todayM && y === todayY
+    ? todayD
+    : dim;
+
   for (let idx = 0; idx < employeeIds.length && idx < configs.length; idx++) {
     const cfg = configs[idx];
     const eid = employeeIds[idx];
@@ -605,30 +652,33 @@ async function seedAttendance(
     const unpaidLeaveDays = new Set<number>();
 
     if (idx === 0) {
-      paidLeaveDays.add(Math.min(dim, 14));
+      paidLeaveDays.add(Math.min(maxDay, 14));
     }
     if (idx === 1) {
       paidLeaveDays.add(7);
       paidLeaveDays.add(8);
     }
     if (idx === 2) {
-      unpaidLeaveDays.add(Math.min(dim, 16));
+      unpaidLeaveDays.add(Math.min(maxDay, 16));
     }
     if (idx === 4) {
-      paidLeaveDays.add(Math.min(dim, 11));
-      paidLeaveDays.add(Math.min(dim, 12));
+      paidLeaveDays.add(Math.min(maxDay, 11));
+      paidLeaveDays.add(Math.min(maxDay, 12));
     }
-    if (idx === 5 && dim >= 20) {
+    if (idx === 5 && maxDay >= 20) {
       daysOff.add(3);
       daysOff.add(4);
       daysOff.add(5);
     }
 
-    for (let d = 1; d <= dim; d++) {
+    for (let d = 1; d <= maxDay; d++) {
       const dt = new Date(y, m - 1, d);
       const wd = dt.getDay() === 0 ? 7 : dt.getDay();
       if (!cfg.workDays.includes(wd)) continue;
       if (daysOff.has(d)) continue;
+
+      // Ngày hiện tại: bỏ qua để test chấm công QR
+      const isToday = d === todayD && m === todayM && y === todayY;
 
       if (paidLeaveDays.has(d)) {
         rows.push({
@@ -659,8 +709,14 @@ async function seedAttendance(
       const early = Math.random() < 0.1 ? randomInt(5, Math.min(20, cfg.endMin)) : 0;
       const actualMins = Math.max(0, cfg.mins - late - early);
       const cin = vnDateTime(y, m, d, cfg.startHour, Math.min(59, cfg.startMin + late));
-      const cout = vnDateTime(y, m, d, cfg.endHour, Math.max(0, cfg.endMin - early));
 
+      if (isToday) {
+        // Bỏ qua ngày hiện tại để nhân viên có thể test chấm công QR
+        continue;
+      }
+
+      // Các ngày trước đó: tạo đầy đủ check-in/check-out
+      const cout = vnDateTime(y, m, d, cfg.endHour, Math.max(0, cfg.endMin - early));
       rows.push({
         employeeId: eid,
         date: vnDateOnly(y, m, d),
@@ -683,13 +739,17 @@ async function seedLeaveRequests(
   employeeIds: number[],
   reviewerId: number,
 ) {
-  const y = new Date().getFullYear();
-  const m = new Date().getMonth() + 1;
+  // Lấy ngày hôm nay theo timezone VN
+  const todayStr = todayVnDateString();
+  const [y, m, today] = todayStr.split('-').map(Number);
+
+  // Tháng tiếp theo cho đơn PENDING (xin nghỉ sắp tới)
   const nm = m >= 12 ? 1 : m + 1;
   const ny = m >= 12 ? y + 1 : y;
 
   const leaves: Prisma.LeaveRequestCreateManyInput[] = [];
 
+  // Đơn xin nghỉ tương lai (tháng sau) - PENDING
   if (employeeIds[0]) {
     leaves.push({
       storeId,
@@ -701,30 +761,37 @@ async function seedLeaveRequests(
       status: LeaveRequestStatus.PENDING,
     });
   }
-  if (employeeIds[2]) {
+
+  // Đơn trong tháng hiện tại - chỉ tạo nếu ngày chưa qua
+  if (employeeIds[2] && today > 5) {
+    // Đơn bị từ chối (ngày đã qua)
     leaves.push({
       storeId,
       employeeId: employeeIds[2],
-      fromDate: vnDateOnly(y, m, 3),
-      toDate: vnDateOnly(y, m, 3),
+      fromDate: vnDateOnly(y, m, Math.max(1, today - 5)),
+      toDate: vnDateOnly(y, m, Math.max(1, today - 5)),
       isPaid: false,
       reason: "Việc gia đình đột xuất",
       status: LeaveRequestStatus.REJECTED,
       reviewedBy: reviewerId,
     });
   }
-  if (employeeIds[1]) {
+
+  if (employeeIds[1] && today > 8) {
+    // Đơn đã duyệt (ngày đã qua)
     leaves.push({
       storeId,
       employeeId: employeeIds[1],
-      fromDate: vnDateOnly(y, m, 7),
-      toDate: vnDateOnly(y, m, 8),
+      fromDate: vnDateOnly(y, m, Math.max(1, today - 8)),
+      toDate: vnDateOnly(y, m, Math.max(1, today - 7)),
       isPaid: true,
       reason: "Ốm đau — nghỉ bù",
       status: LeaveRequestStatus.APPROVED,
       reviewedBy: reviewerId,
     });
   }
+
+  // Đơn xin nghỉ tương lai (tháng sau) - PENDING
   if (employeeIds[3]) {
     leaves.push({
       storeId,
@@ -736,18 +803,22 @@ async function seedLeaveRequests(
       status: LeaveRequestStatus.PENDING,
     });
   }
-  if (employeeIds[4]) {
+
+  if (employeeIds[4] && today > 10) {
+    // Đơn đã duyệt (ngày đã qua)
     leaves.push({
       storeId,
       employeeId: employeeIds[4],
-      fromDate: vnDateOnly(y, m, 11),
-      toDate: vnDateOnly(y, m, 12),
+      fromDate: vnDateOnly(y, m, Math.max(1, today - 10)),
+      toDate: vnDateOnly(y, m, Math.max(1, today - 9)),
       isPaid: true,
       reason: "Khám sức khỏe định kỳ",
       status: LeaveRequestStatus.APPROVED,
       reviewedBy: reviewerId,
     });
   }
+
+  // Đơn xin nghỉ tương lai (tháng sau) - PENDING
   if (employeeIds[5]) {
     leaves.push({
       storeId,
@@ -1194,26 +1265,29 @@ async function main() {
     );
   } catch {
     console.log("   ⚠️ TRUNCATE lỗi, dùng deleteMany...");
+    // Xóa theo thứ tự: bảng con trước, bảng cha sau (tránh lỗi khóa ngoại)
     for (const model of [
+      // Bảng liên kết many-to-many và log
       "userRole",
       "rolePermission",
       "storeUserRole",
+      "storeRolePermission",
       "attendanceEditLog",
+      // Bảng dữ liệu chính
+      "orderItem",
+      "order",
+      "expense",
       "attendance",
       "payrollSnapshot",
       "leaveRequest",
       "scheduleOverride",
-      "orderItem",
-      "order",
-      "expense",
       "table",
-      "area",
       "menuItem",
       "category",
+      "area",
       "status",
       "storeUser",
       "storeRole",
-      "storeRolePermission",
       "store",
       "user",
       "role",
@@ -1265,9 +1339,9 @@ async function main() {
   await seedStoreData(store1.id, "coffee");
   const expCount1 = await seedExpenses(store1.id);
 
-  const now = new Date();
-  const curY = now.getFullYear();
-  const curM = now.getMonth() + 1;
+  // Lấy ngày hiện tại theo timezone VN
+  const todayStr = todayVnDateString();
+  const [curY, curM] = todayStr.split('-').map(Number);
   const { y: prevY, m: prevM } = prevMonthYear(curY, curM);
 
   const attCur1 = await seedAttendance(store1.id, staff1, curY, curM);

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import app from '@/app';
 import { env } from '@/config/env';
 import { bootstrapRbac } from '@/config/rbac/rbac-bootstrap';
@@ -9,7 +10,7 @@ async function main() {
     console.warn('[RBAC] Không thể đồng bộ permissions (có thể chưa migrate DB):', (err as Error).message);
   }
 
-  const server = app.listen(env.PORT, () => {
+  const server = app.listen(env.PORT, '0.0.0.0', () => {
     console.log(`🚀 Server Orderly POS đang chạy tại: http://localhost:${env.PORT}`);
     if (env.NODE_ENV !== 'production') {
       console.log(`📖 Tài liệu API (Scalar): http://localhost:${env.PORT}/docs`);

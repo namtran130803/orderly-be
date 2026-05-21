@@ -65,6 +65,13 @@ router.post(
   controller.create,
 );
 
+router.get(
+  "/:attendanceId",
+  requirePermission(PERMS.attendance.edit),
+  validate(attendanceParamsSchema, "params"),
+  controller.getById,
+);
+
 router.patch(
   "/:attendanceId",
   requirePermission(PERMS.attendance.edit),

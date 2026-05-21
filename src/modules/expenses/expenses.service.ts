@@ -1,6 +1,7 @@
 import { prisma } from '@/config/prisma';
 import { Prisma } from '@prisma/client';
 import { ApiError } from '@/lib/response';
+import { formatVnDateString, todayVnDateString } from '@/lib/date-vn';
 import { ExpenseQueryDto, CreateExpenseDto, UpdateExpenseDto } from '@/modules/expenses/expenses.schema';
 
 async function assertExpenseOwnership(invId: number, storeId: number) {
@@ -53,7 +54,9 @@ export async function listExpenses(storeId: number, query: ExpenseQueryDto) {
 }
 
 export async function createExpense(storeId: number, dto: CreateExpenseDto) {
-  const targetDate = dto.rawDate ? new Date(`${dto.rawDate}T00:00:00.000Z`) : new Date();
+  // Ngày theo VN: nếu không có rawDate thì dùng hôm nay theo giờ VN
+  const dateStr = dto.rawDate ?? todayVnDateString();
+  const targetDate = new Date(`${dateStr}T00:00:00.000+07:00`);
 
   return prisma.expense.create({
     data: {
@@ -74,9 +77,10 @@ export async function updateExpense(storeId: number, invId: number, dto: UpdateE
   if (dto.description !== undefined) updateData.description = dto.description;
   if (dto.amount !== undefined) updateData.amount = dto.amount;
   if (dto.rawDate !== undefined) {
-    const existingDateStr = expense.rawDate.toISOString().split('T')[0];
+    const existingDateStr = formatVnDateString(expense.rawDate);
     if (dto.rawDate !== existingDateStr) {
-      updateData.rawDate = new Date(`${dto.rawDate}T00:00:00.000Z`);
+      // Ngày theo VN +07:00
+      updateData.rawDate = new Date(`${dto.rawDate}T00:00:00.000+07:00`);
     }
   }
 

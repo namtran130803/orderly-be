@@ -1,17 +1,49 @@
 import { AttendanceStatus, SalaryType } from '@prisma/client';
 import { prisma } from '@/config/prisma';
 import { ApiError } from '@/lib/response';
-import { enumerateMonthDays, startOfVnDayFromDateString } from '@/lib/date-vn';
+import {
+  enumerateMonthDays,
+  formatVnDateString,
+  startOfVnDayFromDateString,
+} from '@/lib/date-vn';
 import { loadOverridesForMonth } from '@/modules/schedule/schedule.service';
 import {
   countEmployeeStandardDaysInMonth,
   effectiveWorkDaysForEmployee,
   isWorkingDay,
 } from '@/lib/schedule-helpers';
+import {
+  buildWorkMinutesByVnDateForMonth,
+  dayCountsAsPaid,
+  isOpenWorkShift,
+  mergeAttendanceRowsForDay,
+} from '@/lib/attendance-helpers';
 import { countPaidDaysForEmployee } from '@/modules/attendance/attendance.service';
 import type { PayrollMonthQueryDto } from '@/modules/payroll/payroll.schema';
 
 export type PayrollDayStatus = 'OFF' | 'WORK' | 'PAID_LEAVE' | 'UNPAID_LEAVE' | 'ABSENT';
+
+/** Ca WORK hoàn thành có ngày vào (date) trong tháng lương. */
+async function loadCompletedShiftsByCheckInMonth(
+  employeeId: number,
+  year: number,
+  month: number,
+) {
+  const days = enumerateMonthDays(year, month);
+  if (days.length === 0) return [];
+  const from = startOfVnDayFromDateString(days[0]);
+  const to = startOfVnDayFromDateString(days[days.length - 1]);
+
+  return prisma.attendance.findMany({
+    where: {
+      employeeId,
+      status: AttendanceStatus.WORK,
+      checkIn: { not: null },
+      checkOut: { not: null },
+      date: { gte: from, lte: to },
+    },
+  });
+}
 
 async function sumWorkMinutesForMonth(
   employeeId: number,
@@ -20,18 +52,15 @@ async function sumWorkMinutesForMonth(
 ): Promise<number> {
   const days = enumerateMonthDays(year, month);
   if (days.length === 0) return 0;
-  const from = startOfVnDayFromDateString(days[0]);
-  const to = startOfVnDayFromDateString(days[days.length - 1]);
-
-  const rows = await prisma.attendance.findMany({
-    where: {
-      employeeId,
-      date: { gte: from, lte: to },
-      status: AttendanceStatus.WORK,
-    },
-    select: { workMinutes: true },
-  });
-  return rows.reduce((acc, r) => acc + (r.workMinutes ?? 0), 0);
+  const shifts = await loadCompletedShiftsByCheckInMonth(
+    employeeId,
+    year,
+    month,
+  );
+  const minutesByDate = buildWorkMinutesByVnDateForMonth(shifts, days);
+  let total = 0;
+  for (const mins of minutesByDate.values()) total += mins;
+  return total;
 }
 
 export async function getPayrollPreview(storeId: number, q: PayrollMonthQueryDto) {
@@ -205,7 +234,20 @@ export async function getPayrollEmployeeDetail(
   const att = await prisma.attendance.findMany({
     where: { employeeId, date: { gte: from, lte: to } },
   });
-  const byDate = new Map(att.map((a) => [a.date.toISOString().slice(0, 10), a]));
+  const byDate = new Map<string, typeof att>();
+  for (const a of att) {
+    const key = formatVnDateString(a.date);
+    const list = byDate.get(key) ?? [];
+    list.push(a);
+    byDate.set(key, list);
+  }
+
+  const completedShifts = await loadCompletedShiftsByCheckInMonth(
+    employeeId,
+    q.year,
+    q.month,
+  );
+  const minutesByDate = buildWorkMinutesByVnDateForMonth(completedShifts, days);
 
   let workDays = 0;
   let paidLeaveDays = 0;
@@ -213,6 +255,7 @@ export async function getPayrollEmployeeDetail(
   let absentDays = 0;
   let offDays = 0;
   let totalWorkMinutes = 0;
+  for (const mins of minutesByDate.values()) totalWorkMinutes += mins;
 
   const dayBreakdown: {
     date: string;
@@ -229,33 +272,17 @@ export async function getPayrollEmployeeDetail(
       continue;
     }
 
-    const row = byDate.get(d);
-    if (!row) {
-      absentDays += 1;
-      dayBreakdown.push({ date: d, status: 'ABSENT', workMinutes: null, countsTowardPaid: false });
-      continue;
-    }
+    const dayRows = byDate.get(d) ?? [];
+    const merged = mergeAttendanceRowsForDay(dayRows);
+    const dayWorkMinutes = minutesByDate.get(d) ?? 0;
 
-    if (row.status === AttendanceStatus.WORK) {
-      workDays += 1;
-      const mins = row.workMinutes ?? 0;
-      totalWorkMinutes += mins;
-      dayBreakdown.push({
-        date: d,
-        status: 'WORK',
-        workMinutes: row.workMinutes,
-        countsTowardPaid: true,
-      });
-      continue;
-    }
-
-    if (row.status === AttendanceStatus.PAID_LEAVE) {
+    if (merged?.status === AttendanceStatus.PAID_LEAVE) {
       paidLeaveDays += 1;
       dayBreakdown.push({ date: d, status: 'PAID_LEAVE', workMinutes: null, countsTowardPaid: true });
       continue;
     }
 
-    if (row.status === AttendanceStatus.UNPAID_LEAVE) {
+    if (merged?.status === AttendanceStatus.UNPAID_LEAVE) {
       unpaidLeaveDays += 1;
       dayBreakdown.push({
         date: d,
@@ -263,6 +290,34 @@ export async function getPayrollEmployeeDetail(
         workMinutes: null,
         countsTowardPaid: false,
       });
+      continue;
+    }
+
+    if (dayWorkMinutes > 0) {
+      const countsPaidForDay = dayRows.length > 0 && dayCountsAsPaid(dayRows);
+      if (countsPaidForDay) workDays += 1;
+      dayBreakdown.push({
+        date: d,
+        status: 'WORK',
+        workMinutes: dayWorkMinutes,
+        countsTowardPaid: countsPaidForDay,
+      });
+      continue;
+    }
+
+    if (dayRows.some(isOpenWorkShift)) {
+      dayBreakdown.push({
+        date: d,
+        status: 'WORK',
+        workMinutes: null,
+        countsTowardPaid: false,
+      });
+      continue;
+    }
+
+    if (!merged) {
+      absentDays += 1;
+      dayBreakdown.push({ date: d, status: 'ABSENT', workMinutes: null, countsTowardPaid: false });
       continue;
     }
 

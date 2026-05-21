@@ -271,7 +271,7 @@ model Attendance {
   employee    StoreUser        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   editLogs    AttendanceEditLog[]
 
-  @@unique([employeeId, date])
+  @@index([employeeId, date])
   @@map("attendances")
 }
 

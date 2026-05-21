@@ -3,6 +3,7 @@ import { prisma } from '@/config/prisma';
 import { ApiError } from '@/lib/response';
 import {
   enumerateDateRangeInclusive,
+  formatVnDateString,
   startOfVnDayFromDateString,
 } from '@/lib/date-vn';
 import { loadOverridesForMonth } from '@/modules/schedule/schedule.service';
@@ -101,8 +102,8 @@ export async function approveLeave(
     throw ApiError.conflict('Đơn đã được xử lý');
   }
 
-  const fromStr = req.fromDate.toISOString().slice(0, 10);
-  const toStr = req.toDate.toISOString().slice(0, 10);
+  const fromStr = formatVnDateString(req.fromDate);
+  const toStr = formatVnDateString(req.toDate);
   await assertPayrollUnlockedForRange(storeId, fromStr, toStr);
 
   const store = await prisma.store.findUnique({
@@ -132,16 +133,13 @@ export async function approveLeave(
       if (!isWorkingDay(d, eff, ov)) continue;
 
       const day = startOfVnDayFromDateString(d);
-      await tx.attendance.upsert({
-        where: {
-          employeeId_date: { employeeId: req.employeeId, date: day },
-        },
-        create: {
+      await tx.attendance.deleteMany({
+        where: { employeeId: req.employeeId, date: day },
+      });
+      await tx.attendance.create({
+        data: {
           employeeId: req.employeeId,
           date: day,
-          status: attStatus,
-        },
-        update: {
           status: attStatus,
         },
       });
@@ -178,8 +176,8 @@ export async function rejectLeave(
     throw ApiError.conflict('Đơn đã được xử lý');
   }
 
-  const fromStr = req.fromDate.toISOString().slice(0, 10);
-  const toStr = req.toDate.toISOString().slice(0, 10);
+  const fromStr = formatVnDateString(req.fromDate);
+  const toStr = formatVnDateString(req.toDate);
   await assertPayrollUnlockedForRange(storeId, fromStr, toStr);
 
   return prisma.leaveRequest.update({

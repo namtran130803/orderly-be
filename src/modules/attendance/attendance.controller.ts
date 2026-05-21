@@ -83,3 +83,15 @@ export async function patch(req: Request, res: Response, next: NextFunction) {
     next(err);
   }
 }
+
+export async function getById(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await service.getAttendanceById(
+      req.store!.id,
+      Number(req.params.attendanceId),
+    );
+    sendSuccess(res, data);
+  } catch (err) {
+    next(err);
+  }
+}
