@@ -7,6 +7,7 @@ import {
   UpdateOrderDto,
   ChangeOrderStatusDto,
 } from "@/modules/orders/orders.schema";
+import type { OrderRealtimeOrder } from "@/realtime/constants";
 
 interface OrderItemWithId {
   id: number;
@@ -18,7 +19,7 @@ interface OrderItemWithId {
   orderId: number;
 }
 
-interface OrderWithItems {
+export interface OrderWithItems {
   id: number;
   storeId: number;
   tableId: number | null;
@@ -415,6 +416,30 @@ export async function revertOrderStatus(
       include: { items: true },
     });
   });
+}
+
+/** Chuẩn hoá đơn để broadcast realtime (có menuItemId, ISO date). */
+export async function formatOrderForBroadcast(
+  order: OrderWithItems,
+): Promise<OrderRealtimeOrder> {
+  const [enriched] = await enrichItems([order]);
+  return {
+    id: enriched.id,
+    tableId: enriched.tableId,
+    tableSnapshot: enriched.tableSnapshot,
+    statusId: enriched.statusId,
+    statusSnapshot: enriched.statusSnapshot,
+    createdAt: enriched.createdAt.toISOString(),
+    items: enriched.items.map((item) => ({
+      id: item.id,
+      menuItemId: item.menuItemId,
+      statusId: item.statusId,
+      statusSnapshot: item.statusSnapshot,
+      nameSnapshot: item.nameSnapshot,
+      priceSnapshot: item.priceSnapshot,
+      qty: item.qty,
+    })),
+  };
 }
 
 export async function deleteOrder(storeId: number, orderId: number) {

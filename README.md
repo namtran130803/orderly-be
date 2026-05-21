@@ -1,186 +1,273 @@
-# Orderly POS — Backend
+# Orderly POS — Backend API
 
-REST API for coffee shop POS. Express 4 + TypeScript + Prisma + PostgreSQL 16.
+REST API cho ứng dụng POS (đơn hàng, menu, chấm công, lương, …). Chạy local bằng **Node.js**; **PostgreSQL** và **Soketi** (WebSocket realtime đơn hàng) chạy qua Docker Compose.
 
 ## Yêu cầu
 
-- Docker & Docker Compose
-- File `.env` (xem `.env.example`)
+| Công cụ | Phiên bản gợi ý |
+| -------- | ----------------- |
+| [Node.js](https://nodejs.org/) | 20+ |
+| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | Compose v2 |
+| npm | đi kèm Node |
+
+Frontend (`orderly-fe`) chạy riêng — xem [orderly-fe/README.md](../orderly-fe/README.md).
+
+---
+
+## Lần đầu chạy (dev)
+
+### 1. Clone và cài dependency
+
+```bash
+cd orderly-be
+npm install
+```
+
+### 2. Biến môi trường
 
 ```bash
 cp .env.example .env
-# Sửa JWT_SECRET thành chuỗi ngẫu nhiên ≥32 ký tự
 ```
 
-## Development
+Chỉnh `.env` nếu cần. Tối thiểu:
 
-### Lần đầu
+- `DATABASE_URL` — trùng user/password/db với Docker Postgres
+- `JWT_SECRET` — chuỗi ngẫu nhiên **≥ 32 ký tự**
+- `PUSHER_*` — khớp với service Soketi (mặc định trong `.env.example` là đủ cho dev)
+
+### 3. Khởi động Postgres + Soketi
 
 ```bash
-# Build image + khởi động DB + API
-docker compose -f docker-compose.dev.yml up -d --build
-
-# Tạo database tables + seed dữ liệu
-docker compose -f docker-compose.dev.yml run --rm api npx prisma db push
-docker compose -f docker-compose.dev.yml run --rm api npx tsx prisma/seed.ts
-
-# Mở http://localhost:3000/docs — Scalar UI
-# Mở http://localhost:3000/api/openapi.json — OpenAPI spec
+docker compose up -d
 ```
 
-### Hàng ngày
+Chỉ cần DB:
 
 ```bash
-# Khởi động (đã có image)
-docker compose -f docker-compose.dev.yml up -d
-
-# Xem log
-docker compose -f docker-compose.dev.yml logs -f api
-
-# Dừng
-docker compose -f docker-compose.dev.yml down
+docker compose up -d db
 ```
 
-Code tự động reload — sửa file → server restart trong ~1-2 giây.
-
-> Docker for Windows không forward inotify events vào container, nên dùng `nodemon --legacy-watch` (polling) thay vì `tsx watch`. Không cần restart container khi sửa code.
-
-### Khi sửa `prisma/schema.prisma`
-
-> `./prisma:/app/prisma` được mount trong `docker-compose.dev.yml` — mọi thay đổi schema ở host được container thấy ngay.
+Kiểm tra:
 
 ```bash
-# 1. Đồng bộ schema xuống DB (tự động chạy prisma generate)
-docker compose -f docker-compose.dev.yml run --rm api npx prisma db push
-
-# 2. Restart API để load Prisma client mới
-docker compose -f docker-compose.dev.yml restart api
-
-# Hoặc dùng migration:
-docker compose -f docker-compose.dev.yml run --rm api npx prisma migrate dev --name mo_ta_thay_doi
+docker compose ps
 ```
 
-> `npm run dev` tự động chạy `npx prisma generate` trước `tsx watch`, nên nếu container restart thì client luôn fresh.
-
-### Khi cần seed lại dữ liệu
+### 4. Database: migrate + seed
 
 ```bash
-docker compose -f docker-compose.dev.yml run --rm api npx tsx prisma/seed.ts
+npm run prm:mgr
+npm run prm:seed
 ```
 
-### Khi rebuild image (thay đổi dependencies, Dockerfile...)
+- `prm:mgr` — áp dụng migration Prisma (lần đầu có thể hỏi tên migration)
+- `prm:seed` — dữ liệu mẫu (cửa hàng, menu, nhân viên, đơn mẫu, …)
+
+### 5. Chạy API
 
 ```bash
-# Volume /app/node_modules là anonymous volume — không tự cập nhật khi rebuild image.
-# Cần xoá volume cũ trước khi rebuild:
-docker compose -f docker-compose.dev.yml down -v
-docker compose -f docker-compose.dev.yml up -d --build
-
-# Sau đó chạy lại db push + seed nếu cần
+npm run dev
 ```
 
-## Production
+- API: `http://localhost:3000` (lắng `0.0.0.0` — máy khác trong LAN gọi được)
+- Tài liệu API (Scalar): `http://localhost:3000/docs`
+- OpenAPI JSON: `http://localhost:3000/api/openapi.json`
 
-### Build image
+### 6. Frontend (cùng máy hoặc điện thoại)
+
+Trong thư mục `orderly-fe`:
 
 ```bash
-docker compose build
+cd ../orderly-fe
+cp .env.example .env
+npm install
+npm run dev
 ```
 
-> **Lưu ý**: Production build chạy `tsc` để kiểm tra kiểu. Nếu có lỗi TypeScript (đặc biệt là lỗi liên quan Prisma), cần sửa code cho pass typecheck trước.
+Mở URL Vite in ra (thường `https://localhost:5173` hoặc `https://<IP-LAN>:5173`).
 
-### Lần đầu deploy
+Cấu hình quan trọng:
+
+| File | Ghi chú |
+| ------ | -------- |
+| `orderly-fe/vite.config.ts` | `server.proxy['/api'].target` → IP:port backend (vd. `http://192.168.1.9:3000`) |
+| `orderly-fe/.env` | `VITE_PUSHER_HOST` = IP máy chạy Soketi (không dùng `127.0.0.1` khi mở FE từ điện thoại) |
+
+**Đăng nhập sau seed** (SĐT = username):
+
+| Vai trò | SĐT | Mật khẩu |
+| -------- | ----- | --------- |
+| Admin / chủ CH1 | `0901234567` | `password123` |
+| Chủ CH2 | `0903456789` | `password123` |
+| Chủ CH3 | `0905678901` | `password123` |
+
+Chi tiết nhân viên mẫu in ra cuối lệnh `npm run prm:seed`.
+
+---
+
+## Các lần chạy sau (dev)
+
+Thứ tự gọn:
 
 ```bash
-# Tạo volume & network
+# 1. Docker (nếu chưa chạy)
+cd orderly-be
 docker compose up -d
 
-# Tạo database tables
-docker compose run --rm api npx prisma db push
-
-# Seed dữ liệu
-docker compose run --rm api npx tsx prisma/seed.ts
+# 2. API
+npm run dev
 ```
 
-### Khi deploy bản mới
+Terminal khác — frontend:
 
 ```bash
-docker compose up -d --build
+cd orderly-fe
+npm run dev
 ```
 
-### Khi DB schema thay đổi
+**Không cần** `npm install` / `prm:seed` lại trừ khi đổi dependency hoặc muốn reset DB.
+
+Khi có migration mới từ git:
 
 ```bash
-docker compose run --rm api npx prisma db push
-# hoặc migration:
-docker compose run --rm api npx prisma migrate deploy
+npm run prm:mgr
 ```
 
-## Kiến trúc Docker
-
-| File | Mục đích |
-|---|---|
-| `Dockerfile` | Build production — multi-stage, compile `tsc` → chạy `node dist/index.js` |
-| `Dockerfile.dev` | Build dev — cài dependencies + copy code, chạy `tsx watch` |
-| `docker-compose.yml` | Production stack (DB + API) |
-| `docker-compose.dev.yml` | Dev stack — mount `./src:/app/src` để hot reload |
-
-### Anonymous volume `/app/node_modules`
-
-Trong `docker-compose.dev.yml`, `/app/node_modules` được khai báo là anonymous volume để tránh xung đột giữa `node_modules` của Windows host và Linux container. Tuy nhiên, volume này không tự động cập nhật khi rebuild image. Nếu cập nhật `package.json` hoặc `prisma/schema.prisma`, cần chạy:
+Reset DB + seed lại (xóa dữ liệu local):
 
 ```bash
-docker compose -f docker-compose.dev.yml down -v
-docker compose -f docker-compose.dev.yml up -d --build
+docker compose down -v   # xóa volume Postgres
+docker compose up -d
+npm run prm:mgr
+npm run prm:seed
 ```
 
-## Cấu hình
+---
 
-| Biến | Mặc định | Mô tả |
-|---|---|---|
-| `PORT` | `3000` | Cổng API |
-| `DATABASE_URL` | — | PostgreSQL connection string |
-| `JWT_SECRET` | — | Khóa JWT (≥32 ký tự) |
-| `JWT_EXPIRES_IN` | `7d` | Thời hạn token |
+## Docker Compose
 
-## Tài liệu API
+| Service | Cổng | Mô tả |
+| -------- | ------ | ------ |
+| `db` | `5432` | PostgreSQL 16 |
+| `soketi` | `6001` | WebSocket (Pusher protocol) — realtime đơn hàng |
+| `soketi` | `9601` | Metrics (tùy chọn) |
 
-- **Scalar UI**: `http://localhost:3000/docs`
-- **OpenAPI JSON**: `http://localhost:3000/api/openapi.json`
-
-## Deploy FE + BE trên cùng VPS
-
-Cả hai project dùng chung network `orderly-network`. FE nginx proxy `/api` → `http://backend:3000`.
+Backend **không** chạy trong Docker (dev); chỉ DB + Soketi.
 
 ```bash
-# 1. Chạy BE
-cd orderly-be && docker compose up -d --build
-
-# 2. Chạy FE (tự động join cùng network)
-cd orderly-fe && docker compose up -d --build
+docker compose up -d      # bật
+docker compose down       # tắt, giữ data
+docker compose down -v    # tắt + xóa volume DB
+docker compose logs -f db # xem log
 ```
 
-## Troubleshooting
+---
 
-### OpenAPI spec thiếu module
+## Scripts npm
 
-Nếu `/api/openapi.json` chỉ hiển thị 10 tags (thiếu employees, payroll, attendance...):
+| Lệnh | Mô tả |
+| ------ | ------ |
+| `npm run dev` | `prisma generate` + API hot-reload (`tsx watch`) |
+| `npm run build` | Build production → `dist/` |
+| `npm run start` | Chạy `dist/index.js` |
+| `npm run prm:gen` | Generate Prisma Client |
+| `npm run prm:mgr` | Migration dev (`prisma migrate dev`) |
+| `npm run prm:mgr:deploy` | Migration production |
+| `npm run prm:push` | Đồng bộ schema không tạo file migration |
+| `npm run prm:seed` | Seed dữ liệu mẫu |
+
+---
+
+## Biến môi trường (`.env`)
+
+| Biến | Bắt buộc | Mô tả |
+| ------ | ---------- | ------ |
+| `DATABASE_URL` | Có | URL Postgres |
+| `JWT_SECRET` | Có (≥32 ký tự) | Ký JWT đăng nhập + QR chấm công |
+| `JWT_EXPIRES_IN` | Không | Mặc định `7d` |
+| `PORT` | Không | Mặc định `3000` |
+| `NODE_ENV` | Không | `development` / `production` |
+| `PUSHER_APP_ID` | Realtime | Khớp Soketi |
+| `PUSHER_APP_KEY` | Realtime | Khớp FE `VITE_PUSHER_KEY` |
+| `PUSHER_APP_SECRET` | Realtime | Khớp Soketi |
+| `PUSHER_HOST` | Realtime | Host BE gọi trigger (dev: `127.0.0.1`) |
+| `PUSHER_PORT` | Realtime | Mặc định `6001` |
+| `PUSHER_USE_TLS` | Realtime | `false` trong dev |
+
+Thiếu `PUSHER_*` → API vẫn chạy; realtime đơn hàng tắt.
+
+Postgres trong Docker dùng thêm (cho `docker compose`):
+
+- `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
+
+---
+
+## Realtime đơn hàng (Soketi)
+
+Khi nhân viên/chủ cửa hàng tạo, sửa, chuyển trạng thái hoặc xóa đơn, BE phát event qua Soketi; FE (`OrdersPage`) tự làm mới danh sách.
+
+Điều kiện hoạt động:
+
+1. `docker compose` có service `soketi` đang chạy
+2. BE `.env` và FE `VITE_PUSHER_*` dùng **cùng** `APP_KEY` / secret
+3. `VITE_PUSHER_HOST` trỏ tới máy chạy Soketi, truy cập được từ trình duyệt
+
+---
+
+## Cấu trúc thư mục (gợi ý)
+
+```
+src/
+  config/          # env, prisma, RBAC
+  modules/         # route theo domain (orders, attendance, …)
+  realtime/        # Soketi / Pusher broadcast
+  middleware/
+  lib/
+prisma/
+  schema.prisma
+  migrations/
+  seed.ts
+```
+
+---
+
+## Xử lý sự cố
+
+**API không start — lỗi env / Prisma**
+
+- Kiểm tra `.env` và `JWT_SECRET` đủ dài
+- Chạy `npm run prm:gen`
+
+**Không kết nối DB**
+
+- `docker compose ps` — `db` phải `healthy`
+- `DATABASE_URL` host `localhost`, port `5432`
+
+**FE báo lỗi mạng / 401**
+
+- Backend `npm run dev` đang chạy
+- Proxy Vite trỏ đúng IP backend
+
+**Realtime đơn không cập nhật**
+
+- Soketi: `docker compose logs soketi`
+- `PUSHER_APP_KEY` (BE) = `VITE_PUSHER_KEY` (FE)
+- Từ điện thoại: `VITE_PUSHER_HOST=<IP-LAN>`, mở port `6001` firewall nếu cần
+
+**Đổi schema DB**
 
 ```bash
-# Kiểm tra container đang chạy dev (tsx watch) hay production (node dist/)
-docker exec backend ps aux | head -2
-
-# Nếu thấy "node dist/index.js" → container đang dùng image production.
-# Cần build lại từ Dockerfile.dev:
-docker compose -f docker-compose.dev.yml build api
-docker compose -f docker-compose.dev.yml up -d api
+npm run prm:mgr
 ```
 
-### Lỗi "Cannot read properties of undefined (reading 'MONTHLY')"
+---
 
-Prisma client thiếu enum mới. Chạy regenerate:
+## Production (tóm tắt)
 
 ```bash
-docker exec backend npx prisma generate
-docker compose -f docker-compose.dev.yml restart api
+npm run build
+npm run prm:mgr:deploy
+npm run start
 ```
+
+Set `NODE_ENV=production`, secret mạnh, HTTPS phía reverse proxy; cấu hình Soketi/Pusher cho môi trường thật.
