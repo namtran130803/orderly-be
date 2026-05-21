@@ -15,9 +15,35 @@ const roleIdParam = {
 };
 
 export const storeRolePaths: PathsObject = {
+  "/api/stores/{storeId}/roles/me": {
+    get: {
+      tags: ["Vai trò cửa hàng"],
+      summary: "Vai trò của tôi",
+      description: "Lấy thông tin vai trò của tài khoản đang đăng nhập trong cửa hàng này.",
+      parameters: [storeIdParam],
+      responses: {
+        200: {
+          description: "Vai trò của tôi",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  success: { type: "boolean", example: true },
+                  data: { type: "array", items: { $ref: "#/components/schemas/MyStoreRoleResponse" } },
+                  message: { type: "string", example: "Vai trò của bạn" },
+                },
+              },
+            },
+          },
+        },
+        ...errorResponses(401, 403),
+      },
+    },
+  },
   "/api/stores/{storeId}/roles": {
     get: {
-      tags: ["Vai trò"],
+      tags: ["Vai trò cửa hàng"],
       summary: "Danh sách",
       parameters: [storeIdParam],
       responses: {
@@ -43,7 +69,7 @@ export const storeRolePaths: PathsObject = {
       },
     },
     post: {
-      tags: ["Vai trò"],
+      tags: ["Vai trò cửa hàng"],
       summary: "Tạo",
       parameters: [storeIdParam],
       requestBody: {
@@ -75,7 +101,7 @@ export const storeRolePaths: PathsObject = {
   },
   "/api/stores/{storeId}/roles/{roleId}": {
     put: {
-      tags: ["Vai trò"],
+      tags: ["Vai trò cửa hàng"],
       summary: "Cập nhật",
       parameters: [storeIdParam, roleIdParam],
       requestBody: {
@@ -107,7 +133,7 @@ export const storeRolePaths: PathsObject = {
       },
     },
     delete: {
-      tags: ["Vai trò"],
+      tags: ["Vai trò cửa hàng"],
       summary: "Xóa",
       parameters: [storeIdParam, roleIdParam],
       responses: {

@@ -36,6 +36,33 @@ export async function listStoreRoles(storeId: number) {
   });
 }
 
+export async function getMyStoreRoles(storeId: number, userId: number) {
+  const storeUser = await prisma.storeUser.findFirst({
+    where: { storeId, userId },
+    include: {
+      roles: {
+        include: {
+          storeRole: {
+            include: {
+              permissions: {
+                include: { permission: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!storeUser) return [];
+
+  return storeUser.roles.map((sur) => ({
+    id: sur.storeRole.id,
+    name: sur.storeRole.name,
+    permissions: sur.storeRole.permissions.map((p) => p.permission.code),
+  }));
+}
+
 export async function createStoreRole(storeId: number, userPermissions: string[], dto: CreateStoreRoleDto) {
   const existing = await prisma.storeRole.findFirst({
     where: { storeId, name: dto.name },

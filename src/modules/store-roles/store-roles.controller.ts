@@ -14,6 +14,17 @@ export async function list(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+export async function myRoles(req: Request, res: Response, next: NextFunction) {
+  try {
+    const storeId = Number(req.params.storeId);
+    if (isNaN(storeId)) throw ApiError.badRequest('storeId không hợp lệ');
+    const result = await service.getMyStoreRoles(storeId, req.user!.id);
+    sendSuccess(res, result, 'Vai trò của bạn');
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
     const storeId = Number(req.params.storeId);

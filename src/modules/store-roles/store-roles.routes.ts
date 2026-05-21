@@ -14,6 +14,8 @@ const router = Router({ mergeParams: true });
 
 router.use(authenticate, requireStoreAccess);
 
+router.get('/me', controller.myRoles);
+
 router.get("/", requirePermission(PERMS.store_roles.list), controller.list);
 router.post(
   "/",

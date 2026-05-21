@@ -40,7 +40,7 @@ export async function create(req: Request, res: Response, next: NextFunction) {
 export async function update(req: Request, res: Response, next: NextFunction) {
   try {
     const dto = req.body as UpdateStoreDto;
-    const store = await service.updateStore(req.store!.id, dto);
+    const store = await service.updateStore(req.store!.id, req.user!.id, dto);
     sendSuccess(res, store, "Cập nhật thành công");
   } catch (err) {
     next(err);

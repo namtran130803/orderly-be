@@ -2,9 +2,34 @@ import type { PathsObject } from 'openapi3-ts/oas31';
 import { successResponse, errorResponses } from '@/docs/schemas/common';
 
 export const rolesPaths: PathsObject = {
+  '/api/roles/me': {
+    get: {
+      tags: ['Vai trò hệ thống'],
+      summary: 'Vai trò của tôi',
+      description: 'Lấy thông tin vai trò hệ thống của tài khoản đang đăng nhập.',
+      responses: {
+        200: {
+          description: 'Vai trò của tôi',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  success: { type: 'boolean', example: true },
+                  data: { type: 'array', items: { $ref: '#/components/schemas/MyRoleResponse' } },
+                  message: { type: 'string', example: 'Vai trò của bạn' },
+                },
+              },
+            },
+          },
+        },
+        ...errorResponses(401, 403),
+      },
+    },
+  },
   '/api/roles': {
     get: {
-      tags: ['Vai trò'],
+      tags: ['Vai trò hệ thống'],
       summary: 'Danh sách',
       responses: {
         200: {
@@ -25,7 +50,7 @@ export const rolesPaths: PathsObject = {
       },
     },
     post: {
-      tags: ['Vai trò'],
+      tags: ['Vai trò hệ thống'],
       summary: 'Tạo',
       requestBody: {
         required: true,
@@ -47,7 +72,7 @@ export const rolesPaths: PathsObject = {
   },
   '/api/roles/{roleId}': {
     put: {
-      tags: ['Vai trò'],
+      tags: ['Vai trò hệ thống'],
       summary: 'Cập nhật',
       parameters: [{ name: 'roleId', in: 'path' as const, required: true, schema: { type: 'integer' as const } }],
       requestBody: {
@@ -65,7 +90,7 @@ export const rolesPaths: PathsObject = {
       },
     },
     delete: {
-      tags: ['Vai trò'],
+      tags: ['Vai trò hệ thống'],
       summary: 'Xóa',
       parameters: [{ name: 'roleId', in: 'path' as const, required: true, schema: { type: 'integer' as const } }],
       responses: {

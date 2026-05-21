@@ -27,6 +27,19 @@ export const rolesSchemas: Record<string, SchemaObject> = {
       createdAt: { type: 'string', format: 'date-time' },
     },
   },
+  MyRoleResponse: {
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        id: { type: 'integer', example: 1 },
+        name: { type: 'string', example: 'Quản trị viên' },
+        code: { type: 'string', example: 'admin' },
+        isSystem: { type: 'boolean', example: true },
+        permissions: { type: 'array', items: { type: 'string' }, example: ['users.list', 'roles.create', 'orders.list'] },
+      },
+    },
+  },
   CreateRoleRequest: {
     type: 'object',
     required: ['name'],

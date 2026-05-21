@@ -30,6 +30,35 @@ export async function listRoles() {
   });
 }
 
+export async function getMyRoles(userId: number) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      userRoles: {
+        include: {
+          role: {
+            include: {
+              permissions: {
+                include: { permission: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!user) return [];
+
+  return user.userRoles.map((ur) => ({
+    id: ur.role.id,
+    name: ur.role.name,
+    code: ur.role.code,
+    isSystem: ur.role.isSystem,
+    permissions: ur.role.permissions.map((p) => p.permission.code),
+  }));
+}
+
 export async function createRole(dto: CreateRoleDto) {
   const existing = await prisma.role.findUnique({ where: { name: dto.name } });
   if (existing) {

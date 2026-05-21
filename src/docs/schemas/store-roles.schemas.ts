@@ -23,6 +23,17 @@ export const storeRoleSchemas = {
       },
     },
   },
+  MyStoreRoleResponse: {
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        id: { type: 'integer', example: 1 },
+        name: { type: 'string', example: 'Thu ngân' },
+        permissions: { type: 'array', items: { type: 'string' }, example: ['orders.list', 'orders.create'] },
+      },
+    },
+  },
   CreateStoreRoleRequest: {
     type: 'object',
     required: ['name'],

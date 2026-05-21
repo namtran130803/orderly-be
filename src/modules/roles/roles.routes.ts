@@ -11,6 +11,8 @@ const router = Router();
 
 router.use(authenticate, requireSystemAccess);
 
+router.get('/me', controller.myRoles);
+
 router.get('/', requirePermission(PERMS.roles.list), controller.list);
 router.post('/', requirePermission(PERMS.roles.create), validate(createRoleSchema), controller.create);
 router.put('/:roleId', requirePermission(PERMS.roles.update), validate(roleParamsSchema, 'params'), validate(updateRoleSchema), controller.update);

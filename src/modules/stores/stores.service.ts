@@ -73,15 +73,41 @@ export async function createStore(userId: number, dto: CreateStoreDto) {
       }
     }
 
-    return store;
+    // Trả về cùng format như listStores
+    return {
+      id: store.id,
+      name: store.name,
+      address: store.address,
+      roleName: [], // Owner không có storeRoles
+    };
   });
 }
 
-export async function updateStore(storeId: number, dto: UpdateStoreDto) {
-  return prisma.store.update({
+export async function updateStore(storeId: number, userId: number, dto: UpdateStoreDto) {
+  const store = await prisma.store.update({
     where: { id: storeId },
     data: dto,
   });
+
+  // Lấy roles của user trong store
+  const storeUser = await prisma.storeUser.findFirst({
+    where: { storeId, userId },
+    include: {
+      roles: {
+        include: {
+          storeRole: true,
+        },
+      },
+    },
+  });
+
+  // Trả về cùng format như listStores
+  return {
+    id: store.id,
+    name: store.name,
+    address: store.address,
+    roleName: storeUser?.roles.map((r) => r.storeRole.name) ?? [],
+  };
 }
 
 export async function deleteStore(storeId: number) {

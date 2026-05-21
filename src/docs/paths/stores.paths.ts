@@ -50,7 +50,21 @@ export const storePaths: PathsObject = {
         },
       },
       responses: {
-        201: successResponse('Store', 'Tạo thành công'),
+        201: {
+          description: 'Tạo thành công',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  success: { type: 'boolean', example: true },
+                  data: { $ref: '#/components/schemas/Store' },
+                  message: { type: 'string', example: 'Tạo thành công' },
+                },
+              },
+            },
+          },
+        },
         ...errorResponses(400, 401),
       },
     },
@@ -114,7 +128,21 @@ export const storePaths: PathsObject = {
         },
       },
       responses: {
-        200: successResponse('Store', 'Cập nhật thành công'),
+        200: {
+          description: 'Cập nhật thành công',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  success: { type: 'boolean', example: true },
+                  data: { $ref: '#/components/schemas/Store' },
+                  message: { type: 'string', example: 'Cập nhật thành công' },
+                },
+              },
+            },
+          },
+        },
         ...errorResponses(400, 401, 403, 404),
       },
     },
