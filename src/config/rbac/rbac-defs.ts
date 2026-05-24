@@ -119,6 +119,12 @@ export const PERMS = {
     lock: "payroll.lock",
     unlock: "payroll.unlock",
   },
+  ai: {
+    menu_analyze: 'ai.menu_analyze',
+    menu_generate: 'ai.menu_generate',
+    expense_analyze: 'ai.expense_analyze',
+    expense_generate: 'ai.expense_generate',
+  },
 } as const;
 
 export const MODULE_DEFS: ModuleDef[] = [
@@ -300,6 +306,16 @@ export const MODULE_DEFS: ModuleDef[] = [
       { code: PERMS.payroll.unlock, name: "Mở khóa" },
     ],
   },
+  {
+    code: "ai",
+    name: "AI",
+    apis: [
+      { code: PERMS.ai.menu_analyze, name: "Phân tích ảnh menu" },
+      { code: PERMS.ai.menu_generate, name: "Tạo menu từ AI" },
+      { code: PERMS.ai.expense_analyze, name: "Phân tích ảnh chi tiêu" },
+      { code: PERMS.ai.expense_generate, name: "Tạo chi tiêu từ AI" },
+    ],
+  },
 ];
 
 // Permission codes dành cho chủ cửa hàng — chỉ trong phạm vi cửa hàng
@@ -380,6 +396,11 @@ export const STORE_OWNER_PERMS: string[] = [
   PERMS.payroll.detail,
   PERMS.payroll.lock,
   PERMS.payroll.unlock,
+  // ai
+  PERMS.ai.menu_analyze,
+  PERMS.ai.menu_generate,
+  PERMS.ai.expense_analyze,
+  PERMS.ai.expense_generate,
 ];
 
 export const ROLE_DEFS = {

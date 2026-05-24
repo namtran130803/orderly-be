@@ -25,6 +25,7 @@ import systemRoutes         from '@/modules/system/system.routes';
 import roleRoutes           from '@/modules/roles/roles.routes';
 import employeeRoutes       from '@/modules/employees/employees.routes';
 import storeRoleRoutes      from '@/modules/store-roles/store-roles.routes';
+import aiRoutes             from '@/modules/ai/ai.routes';
 
 import { apiReference } from '@scalar/express-api-reference';
 import { openApiSpec }  from '@/docs/openapi';
@@ -35,7 +36,7 @@ app.use(helmet({
   contentSecurityPolicy: false,
 }));
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 app.get('/api/openapi.json', (_req, res) => {
   res.json(openApiSpec);
@@ -85,6 +86,7 @@ storeRouter.use('/leave',                   leaveRoutes);
 storeRouter.use('/payroll',                 payrollRoutes);
 storeRouter.use('/roles',                   storeRoleRoutes);
 storeRouter.use('/employees',               employeeRoutes);
+storeRouter.use('/ai',                      aiRoutes);
 
 // Mount group
 app.use('/api/stores/:storeId',             storeRouter);

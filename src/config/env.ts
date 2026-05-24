@@ -15,6 +15,7 @@ const envSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((v) => v === 'true'),
+  GROQ_API_KEY: z.string().min(1, 'GROQ_API_KEY is required'),
 });
 
 export const env = envSchema.parse(process.env);
