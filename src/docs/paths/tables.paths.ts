@@ -12,15 +12,18 @@ export const tablePaths: PathsObject = {
       parameters: [storeIdParam],
       responses: {
         200: {
-          description: 'Danh sách',
+          description: 'Danh sách bàn',
           content: {
             'application/json': {
               schema: {
                 type: 'object',
                 properties: {
                   success: { type: 'boolean', example: true },
-                  data: { type: 'array', items: { $ref: '#/components/schemas/Table' } },
-                  message: { type: 'string', example: 'Danh sách' },
+                  data: {
+                    type: 'array',
+                    items: { $ref: '#/components/schemas/TableListItem' },
+                  },
+                  message: { type: 'string', example: 'Danh sách bàn' },
                 },
               },
             },

@@ -88,6 +88,7 @@ export const commonSchemas: Record<string, any> = {
       name: { type: 'string', example: 'Bàn 1' },
       sortOrder: { type: 'integer', example: 1 },
       areaId: { type: 'integer', example: 1 },
+      orderId: { type: ['integer', 'null'] },
     },
   },
 
@@ -138,24 +139,6 @@ export const commonSchemas: Record<string, any> = {
     },
   },
 
-  DashboardStats: {
-    type: 'object',
-    properties: {
-      revenue: { type: 'integer', example: 15200000 },
-      expense: { type: 'integer', example: 2300000 },
-      orderCount: { type: 'integer', example: 125 },
-      topItems: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            name: { type: 'string', example: 'Cà phê Sữa đá' },
-            qty: { type: 'integer', example: 45 },
-          },
-        },
-      },
-    },
-  },
 };
 
 export function successResponse(schemaRef: string, description = 'OK') {

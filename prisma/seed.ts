@@ -229,6 +229,48 @@ function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+/** Giờ cao điểm quán (VN business hours). */
+const PEAK_ORDER_HOURS = [
+  8, 8, 9, 9, 10, 10, 11, 11, 12, 13, 14, 14, 15, 15, 16, 16, 17, 17, 18, 19,
+  19, 20, 21,
+];
+
+const EXPENSE_IMPORT_TITLES = [
+  "Nhập cà phê hạt Arabica",
+  "Nhập cà phê Robusta",
+  "Nhập sữa tươi",
+  "Nhập sữa đặc",
+  "Nhập trà ô long",
+  "Nhập đào ngâm",
+  "Nhập vải thiều",
+  "Nhập đường cát",
+  "Nhập ly nhựa ống hút",
+  "Nhập topping trân châu",
+  "Nhập thạch dừa",
+  "Nhập kem tươi",
+  "Nhập bột matcha",
+  "Nhập nước cốt dừa",
+  "Nhập siro đường đen",
+  "Nhập đá viên",
+  "Nhập bột cacao",
+  "Nhập hạnh nhân lát",
+  "Nhập trái cây tươi",
+  "Nhập bột bánh kem",
+];
+
+const EXPENSE_OPERATING_TITLES = [
+  "Tiền điện",
+  "Tiền nước",
+  "Tiền internet",
+  "Bảo trì máy pha",
+  "Quảng cáo Facebook",
+  "Phí POS",
+  "Mua khăn giấy",
+  "Mua hộp mang về",
+  "Thuê ship giao hàng",
+  "Mua nước rửa chén",
+];
+
 const VIETNAMESE_NAMES_MALE = [
   "Nguyễn Văn An",
   "Trần Văn Bình",
@@ -1065,6 +1107,21 @@ async function seedStoreData(
     orderBy: { sortOrder: "asc" },
   });
 
+  const endStatus = orderStatuses.find((s) => s.type === StatusType.end);
+  const pipelineStatuses = orderStatuses.filter((s) => s.type !== StatusType.end);
+  if (!endStatus || menuItems.length === 0) {
+    console.log(
+      `   ✔ ${Object.keys(menuData).length} DM, ${menuItems.length} món, ${areaNames.length} KV, ${allTableIds.length} bàn, 0 đơn`,
+    );
+    return { tableIds: allTableIds, menuItems, orderStatuses };
+  }
+
+  const tableRows = await prisma.table.findMany({
+    where: { id: { in: allTableIds } },
+    select: { id: true, name: true },
+  });
+  const tableNameById = new Map(tableRows.map((t) => [t.id, t.name]));
+
   const orderEntries: {
     storeId: number;
     tableId: number | null;
@@ -1082,59 +1139,84 @@ async function seedStoreData(
     qty: number;
   }[] = [];
 
-  let totalOrders = 0;
+  const SEED_DAYS = 56;
   const now = new Date();
-  const today = new Date(
+  const todayUtc = new Date(
     Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()),
   );
 
-  for (const st of orderStatuses) {
-    const count = st.type === "end" ? randomInt(10, 20) : randomInt(3, 8);
-    totalOrders += count;
+  const pushOrder = (
+    status: { id: number; name: string },
+    daysAgo: number,
+    atTable: boolean,
+  ) => {
+    const orderIdx = orderEntries.length;
+    const orderDate = new Date(todayUtc);
+    orderDate.setUTCDate(orderDate.getUTCDate() - daysAgo);
+    orderDate.setUTCHours(
+      pick(PEAK_ORDER_HOURS),
+      randomInt(0, 59),
+      randomInt(0, 59),
+      0,
+    );
 
-    for (let i = 0; i < count; i++) {
-      const orderIdx = orderEntries.length;
-      const daysAgo = randomInt(0, 14);
-      const orderDate = new Date(today);
-      orderDate.setUTCDate(orderDate.getUTCDate() - daysAgo);
-      const hours = randomInt(7, 21);
-      const minutes = randomInt(0, 59);
-      orderDate.setUTCHours(hours, minutes, randomInt(0, 59), 0);
+    const useTable = atTable && allTableIds.length > 0 && Math.random() < 0.72;
+    const tableId = useTable ? pick(allTableIds) : null;
+    const tableSnapshot =
+      tableId != null ? (tableNameById.get(tableId) ?? null) : null;
 
-      const hasTable = Math.random() < 0.6;
-      const tableId = hasTable ? pick(allTableIds) : null;
-      const tableSnapshot = hasTable
-        ? ((await prisma.table.findUnique({ where: { id: tableId! } }))?.name ??
-          null)
-        : null;
+    orderEntries.push({
+      storeId,
+      tableId,
+      tableSnapshot,
+      statusId: status.id,
+      statusSnapshot: status.name,
+      createdAt: orderDate,
+    });
 
-      orderEntries.push({
-        storeId,
-        tableId,
-        tableSnapshot,
-        statusId: st.id,
-        statusSnapshot: st.name,
-        createdAt: orderDate,
+    const itemCount = randomInt(2, 4);
+    const usedIndices = new Set<number>();
+    for (let j = 0; j < itemCount; j++) {
+      let idx: number;
+      do {
+        idx = randomInt(0, menuItems.length - 1);
+      } while (usedIndices.has(idx));
+      usedIndices.add(idx);
+      const mi = menuItems[idx];
+      orderItemEntries.push({
+        orderIdx,
+        statusId: status.id,
+        statusSnapshot: status.name,
+        nameSnapshot: mi.name,
+        priceSnapshot: Number(mi.price),
+        qty: randomInt(1, 2),
       });
+    }
+  };
 
-      const itemCount = randomInt(1, 5);
-      const usedIndices = new Set<number>();
-      for (let j = 0; j < itemCount; j++) {
-        let idx: number;
-        do {
-          idx = randomInt(0, menuItems.length - 1);
-        } while (usedIndices.has(idx));
-        usedIndices.add(idx);
-        const mi = menuItems[idx];
-        orderItemEntries.push({
-          orderIdx,
-          statusId: st.id,
-          statusSnapshot: st.name,
-          nameSnapshot: mi.name,
-          priceSnapshot: Number(mi.price),
-          qty: randomInt(1, 3),
-        });
+  for (let daysAgo = 0; daysAgo < SEED_DAYS; daysAgo++) {
+    const day = new Date(todayUtc);
+    day.setUTCDate(day.getUTCDate() - daysAgo);
+    const weekend = day.getUTCDay() === 0 || day.getUTCDay() === 6;
+    const completedPerDay = weekend ? randomInt(14, 24) : randomInt(9, 17);
+
+    for (let i = 0; i < completedPerDay; i++) {
+      pushOrder(endStatus, daysAgo, true);
+    }
+
+    if (daysAgo <= 2) {
+      const openPerDay = randomInt(1, 3);
+      for (let i = 0; i < openPerDay; i++) {
+        pushOrder(pick(pipelineStatuses), daysAgo, Math.random() < 0.85);
       }
+    }
+  }
+
+  const totalOrders = orderEntries.length;
+  let completedRevenue = 0;
+  for (const item of orderItemEntries) {
+    if (orderEntries[item.orderIdx].statusId === endStatus.id) {
+      completedRevenue += item.priceSnapshot * item.qty;
     }
   }
 
@@ -1152,97 +1234,114 @@ async function seedStoreData(
         qty: item.qty,
       })),
     });
+
+    for (let i = 0; i < createdOrders.length; i++) {
+      const entry = orderEntries[i];
+      const created = createdOrders[i];
+      if (
+        entry.statusId !== endStatus.id &&
+        entry.tableId != null &&
+        Math.random() < 0.9
+      ) {
+        await tx.table.update({
+          where: { id: entry.tableId },
+          data: { orderId: created.id },
+        });
+      }
+    }
   });
 
+  const profitHint =
+    completedRevenue > 0
+      ? `, DT đóng ~${(completedRevenue / 1_000_000).toFixed(1)}M`
+      : "";
   console.log(
-    `   ✔ ${Object.keys(menuData).length} DM, ${menuItems.length} món, ${areaNames.length} KV, ${allTableIds.length} bàn, ${totalOrders} đơn`,
+    `   ✔ ${Object.keys(menuData).length} DM, ${menuItems.length} món, ${areaNames.length} KV, ${allTableIds.length} bàn, ${totalOrders} đơn${profitHint}`,
   );
 
   return { tableIds: allTableIds, menuItems, orderStatuses };
 }
 
 async function seedExpenses(storeId: number) {
+  const endStatus = await prisma.status.findFirst({
+    where: { storeId, type: StatusType.end },
+    select: { id: true },
+  });
+  if (!endStatus) return 0;
+
   const now = new Date();
-  const today = new Date(
+  const todayUtc = new Date(
     Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()),
   );
+  const rangeStart = new Date(todayUtc);
+  rangeStart.setUTCDate(rangeStart.getUTCDate() - 55);
 
-  const titles = [
-    "Nhập cà phê hạt Arabica",
-    "Nhập cà phê Robusta",
-    "Nhập sữa tươi Vinamilk",
-    "Nhập sữa đặc Ông Thọ",
-    "Nhập trà ô long",
-    "Nhập đào ngâm hộp",
-    "Nhập vải thiều hộp",
-    "Nhập đường cát",
-    "Nhập ly nhựa ống hút",
-    "Nhập bột bánh kem",
-    "Tiền điện tháng",
-    "Tiền nước",
-    "Tiền internet",
-    "Mua nước ngọt",
-    "Nhập đá viên",
-    "Bảo trì máy pha cà phê",
-    "Mua chén dĩa mới",
-    "Quảng cáo Facebook",
-    "Thuê ship giao hàng",
-    "Mua khăn giấy",
-    "Mua nước rửa chén",
-    "Mua hộp mang về",
-    "In tem logo",
-    "Thuê mặt bằng",
-    "Phí POS",
-    "Mua siro bơ sữa",
-    "Mua topping trân châu",
-    "Nhập thạch dừa",
-    "Mua kem tươi",
-    "Nhập bột cacao",
-    "Mua matcha bột",
-    "Nhập nước cốt dừa",
-    "Mua mật ong",
-    "Nhập tinh dầu vani",
-    "Mua chocolate đen",
-    "Nhập hạnh nhân lát",
-    "Mua trái cây tươi",
-    "Nhập bạc hà tươi",
-    "Mua gừng pha chế",
-    "Nhập sả tươi",
-    "Mua chanh dây đông lạnh",
-    "Nhập dâu tây",
-    "Mua việt quất",
-    "Nhập bánh flan",
-    "Mua thạch cà phê",
-    "Nhập khoai môn",
-    "Mua bơ sáp",
-    "Nhập dừa tươi",
-    "Mua xoài chín",
-    "Nhập cam tươi",
-  ];
+  const orderItems = await prisma.orderItem.findMany({
+    where: {
+      order: {
+        storeId,
+        statusId: endStatus.id,
+        createdAt: {
+          gte: rangeStart,
+          lt: new Date(todayUtc.getTime() + 86400000),
+        },
+      },
+    },
+    select: { priceSnapshot: true, qty: true },
+  });
+
+  let revenue = 0;
+  for (const row of orderItems) {
+    revenue += row.priceSnapshot * row.qty;
+  }
+  if (revenue < 1_000_000) {
+    revenue = 25_000_000;
+  }
+
+  const expenseRatio = 0.34 + Math.random() * 0.08;
+  const totalExpense = Math.round(revenue * expenseRatio);
+  const lineCount = randomInt(72, 98);
+  const weights = Array.from({ length: lineCount }, () => randomInt(40, 100));
+  const weightSum = weights.reduce((a, b) => a + b, 0);
 
   const rows: Prisma.ExpenseCreateManyInput[] = [];
+  let allocated = 0;
 
-  for (let dayOffset = 0; dayOffset < 30; dayOffset++) {
-    const dayCount = dayOffset < 3 ? randomInt(3, 5) : randomInt(1, 3);
-    for (let i = 0; i < dayCount; i++) {
-      const rawDate = new Date(today);
-      rawDate.setUTCDate(
-        rawDate.getUTCDate() - dayOffset + randomInt(0, Math.min(1, dayOffset)),
-      );
+  for (let i = 0; i < lineCount; i++) {
+    const isLast = i === lineCount - 1;
+    const amount = isLast
+      ? totalExpense - allocated
+      : Math.round((weights[i]! / weightSum) * totalExpense);
+    allocated += amount;
 
-      const amount = pick([
-        100000, 150000, 200000, 250000, 300000, 350000, 400000, 500000, 800000,
-        1000000, 1200000, 1500000, 2000000, 2500000, 3000000,
-      ]);
-      const title = pick(titles);
-      const createdAt = new Date(rawDate);
-      createdAt.setUTCHours(randomInt(7, 20), randomInt(0, 59), 0, 0);
+    const daysAgo = randomInt(0, 55);
+    const rawDate = new Date(todayUtc);
+    rawDate.setUTCDate(rawDate.getUTCDate() - daysAgo);
+    const createdAt = new Date(rawDate);
+    createdAt.setUTCHours(randomInt(8, 19), randomInt(0, 59), 0, 0);
 
-      rows.push({ storeId, title, amount, rawDate, createdAt });
-    }
+    const isImport = Math.random() < 0.68;
+    const title = isImport
+      ? pick(EXPENSE_IMPORT_TITLES)
+      : pick(EXPENSE_OPERATING_TITLES);
+
+    rows.push({
+      storeId,
+      title,
+      amount: Math.max(50_000, amount),
+      rawDate,
+      createdAt,
+    });
   }
 
   await prisma.expense.createMany({ data: rows });
+
+  const actualExpense = rows.reduce((s, r) => s + r.amount, 0);
+  const profit = revenue - actualExpense;
+  console.log(
+    `   💰 Chi: ${rows.length} phiếu, tổng ${(actualExpense / 1_000_000).toFixed(1)}M / DT ${(revenue / 1_000_000).toFixed(1)}M → LN ~${(profit / 1_000_000).toFixed(1)}M`,
+  );
+
   return rows.length;
 }
 

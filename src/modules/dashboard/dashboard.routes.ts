@@ -11,6 +11,14 @@ const router = Router({ mergeParams: true });
 
 router.use(authenticate, requireStoreAccess);
 
+router.get('/finance', requirePermission(PERMS.dashboard.stats), validate(dashboardQuerySchema, 'query'), controller.getFinance);
+
+router.get('/orders', requirePermission(PERMS.dashboard.stats), validate(dashboardQuerySchema, 'query'), controller.getOrders);
+
+router.get('/operations', requirePermission(PERMS.dashboard.stats), controller.getOperations);
+
+router.get('/staff', requirePermission(PERMS.dashboard.stats), validate(dashboardQuerySchema, 'query'), controller.getStaff);
+
 router.get('/', requirePermission(PERMS.dashboard.stats), validate(dashboardQuerySchema, 'query'), controller.getStats);
 
 export default router;
