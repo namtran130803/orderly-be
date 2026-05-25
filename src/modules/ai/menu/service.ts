@@ -11,6 +11,65 @@ interface AICategory {
   items: { name: string; price: number }[];
 }
 
+function splitName(name: string): string[] {
+  return name
+    .split(/[/,]/)
+    .map(s => s.trim())
+    .filter(Boolean);
+}
+
+function postProcessCategories(categories: AICategory[]): AICategory[] {
+  const result: AICategory[] = [];
+
+  for (const cat of categories) {
+    const catParts = splitName(cat.name);
+
+    if (catParts.length > 1) {
+      // Split category into parts, each gets all items with prefixed names
+      for (let i = 0; i < catParts.length; i++) {
+        const prefix = catParts[i];
+        const items = cat.items.map(item => {
+          const itemParts = splitName(item.name);
+          if (itemParts.length > 1) {
+            return itemParts.map(p => ({
+              name: `${prefix} ${p}`.trim(),
+              price: item.price,
+            }));
+          }
+          return [{
+            name: item.name.startsWith(prefix) ? item.name : `${prefix} ${item.name}`.trim(),
+            price: item.price,
+          }];
+        }).flat();
+
+        result.push({
+          name: prefix,
+          sortOrder: cat.sortOrder + i,
+          items,
+        });
+      }
+    } else {
+      // Single category — just split item names
+      const items = cat.items.map(item => {
+        const itemParts = splitName(item.name);
+        if (itemParts.length > 1) {
+          // Prefix item parts with category name if not already
+          const catName = cat.name.replace(/^(Các món|Món)\s+/i, '');
+          return itemParts.map(p => ({
+            name: p.includes(catName) ? p : `${catName} ${p}`.trim(),
+            price: item.price,
+          }));
+        }
+        return [item];
+      }).flat();
+
+      result.push({ ...cat, items });
+    }
+  }
+
+  return result;
+}
+
 function parseAIMenuJson(raw: string): AICategory[] {
   let parsed: { categories?: AICategory[] };
 
@@ -24,11 +83,13 @@ function parseAIMenuJson(raw: string): AICategory[] {
     throw ApiError.badRequest('AI không thể phân tích menu. Vui lòng thử lại với mô tả khác.');
   }
 
-  if (parsed.categories.length > 15) {
+  const processed = postProcessCategories(parsed.categories);
+
+  if (processed.length > 15) {
     throw ApiError.badRequest('Quá nhiều danh mục (tối đa 15).');
   }
 
-  const totalItems = parsed.categories.reduce((sum, cat) => sum + cat.items.length, 0);
+  const totalItems = processed.reduce((sum, cat) => sum + cat.items.length, 0);
 
   if (totalItems === 0) {
     throw ApiError.badRequest('Không tìm thấy món ăn nào trong mô tả.');
@@ -38,7 +99,7 @@ function parseAIMenuJson(raw: string): AICategory[] {
     throw ApiError.badRequest('Quá nhiều món ăn (tối đa 80).');
   }
 
-  return parsed.categories;
+  return processed;
 }
 
 export async function analyzeMenuImage(storeId: number, dto: AnalyzeMenuDto): Promise<string> {

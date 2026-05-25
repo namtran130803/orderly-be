@@ -92,65 +92,46 @@ PHÂN TÍCH ẢNH HIỆN TẠI:
 Hãy chỉ trả về TEXT THUẦN đúng format.
 `;
 
+export const GENERATION_MENU_PROMPT = `QUY TẮC SỐ 1 - TÁCH TÊN (TUYỆT ĐỐI KHÔNG SAI):
+- KHÔNG BAO GIỜ được giữ dấu "/" hoặc "," trong "name".
+- Nếu category name có "/" hoặc "," → tách thành nhiều category riêng.
+- Nếu item name có "/" hoặc "," → tách thành nhiều item riêng, mỗi item có cùng price.
+- Nếu tên chỉ ghi "Tái" mà thuộc danh mục "Phở Bò" → ghi đầy đủ "Phở Bò Tái".
+- "name" phải tự giải thích được khi đọc riêng lẻ.
 
-export const GENERATION_MENU_PROMPT =
-  'Trích xuất menu thành JSON đúng khuôn mẫu này, KHÔNG THÊM CHỮ NÀO KHÁC NGOÀI JSON:\n'
-  + '\n'
-  + '{\n'
-  + '  "categories": [\n'
-  + '    {\n'
-  + '      "name": "Tên Danh Mục",\n'
-  + '      "sortOrder": 0,\n'
-  + '      "items": [\n'
-  + '        { "name": "Tên Món", "price": 35000 }\n'
-  + '      ]\n'
-  + '    }\n'
-  + '  ]\n'
-  + '}\n'
-  + '\n'
-  + 'QUY TẮC BẮT BUỘC (làm đúng 100%, sai là hỏng):\n'
-  + '\n'
-  + '1. KHÔNG BAO GIỜ copy dấu "/" hoặc "," vào "name". Luôn tách:\n'
-  + '   - Nếu category name có "/" hoặc "," → tách thành nhiều category riêng\n'
-  + '   - Nếu item name có "/" hoặc "," → tách thành nhiều item riêng\n'
-  + '\n'
-  + '2. "name" phải tự giải thích được — đọc là biết gọi món gì.\n'
-  + '   Nếu item chỉ ghi "Tái" mà thuộc "Phở Bò" → ghi "Phở Bò Tái"\n'
-  + '\n'
-  + 'Ví dụ tách category:\n'
-  + 'Input: "Phở / Miến Bò" + items "Phở Bò Tái 25k", "Phở Bò Nạm 30k" (toàn bộ là Phở Bò)\n'
-  + 'Output: CHỈ tạo "Phở Bò", KHÔNG tạo "Miến Bò" vì không có item nào\n'
-  + '{\n'
-  + '  "categories": [\n'
-  + '    { "name": "Phở Bò", "sortOrder": 0, "items": [\n'
-  + '      { "name": "Phở Bò Tái", "price": 25000 },\n'
-  + '      { "name": "Phở Bò Nạm", "price": 30000 }\n'
-  + '    ]}\n'
-  + '  ]\n'
-  + '}\n'
-  + '\n'
-  + 'Input: "Phở/Miến Gà" + items "Phở gà 30k", "Miến gà 30k"\n'
-  + 'Output: tạo cả "Phở Gà" và "Miến Gà"\n'
-  + '{\n'
-  + '  "categories": [\n'
-  + '    { "name": "Phở Gà", "sortOrder": 0, "items": [\n'
-  + '      { "name": "Phở Gà", "price": 30000 }\n'
-  + '    ]},\n'
-  + '    { "name": "Miến Gà", "sortOrder": 1, "items": [\n'
-  + '      { "name": "Miến Gà", "price": 30000 }\n'
-  + '    ]}\n'
-  + '  ]\n'
-  + '}\n'
-  + '\n'
-  + 'Ví dụ tách item name:\n'
-  + 'Sai: { "name": "Phở Bò Nạm/Gầu/Gân", "price": 30000 }\n'
-  + 'Đúng:\n'
-  + '  { "name": "Phở Bò Nạm", "price": 30000 },\n'
-  + '  { "name": "Phở Bò Gầu", "price": 30000 },\n'
-  + '  { "name": "Phở Bò Gân", "price": 30000 }\n'
-  + '\n'
-  + 'CÁC QUY TẮC KHÁC:\n'
-  + '- "price": số nguyên VND, 25k→25000, free→0\n'
-  + '- Kích cỡ: thêm (Nhỏ)/(Vừa)/(Lớn) vào tên, tách thành item riêng\n'
-  + '- "sortOrder": 0, 1, 2... theo thứ tự xuất hiện\n'
-  + '- Nếu không trích xuất được, trả về { "categories": [] }';
+VÍ DỤ TÁCH CATEGORY:
+Input: "Phở/Miến Gà" + items: "Phở gà 30k", "Miến gà 30k" →
+{"name":"Phở Gà","sortOrder":0,"items":[{"name":"Phở Gà","price":30000}]},
+{"name":"Miến Gà","sortOrder":1,"items":[{"name":"Miến Gà","price":30000}]}
+
+Input: "Phở / Miến Bò" + items: "Phở Tái 25k", "Phở Nạm 30k" (chỉ có Phở, không có Miến) →
+{"name":"Phở Bò","sortOrder":0,"items":[
+  {"name":"Phở Bò Tái","price":25000},
+  {"name":"Phở Bò Nạm","price":30000}
+]}
+
+VÍ DỤ TÁCH ITEM NAME:
+Sai: {"name":"Phở Bò Nạm/Gầu/Gân","price":30000}
+Đúng:
+  {"name":"Phở Bò Nạm","price":30000},
+  {"name":"Phở Bò Gầu","price":30000},
+  {"name":"Phở Bò Gân","price":30000}
+
+QUY TẮC KHÁC:
+- "price": số nguyên VND, 25k→25000, free→0
+- Kích cỡ: thêm (Nhỏ)/(Vừa)/(Lớn) vào tên, tách thành item riêng
+- "sortOrder": 0, 1, 2... theo thứ tự xuất hiện
+- Nếu không trích xuất được, trả về { "categories": [] }
+
+Trích xuất menu thành JSON đúng khuôn mẫu sau, KHÔNG THÊM CHỮ NÀO KHÁC NGOÀI JSON:
+{
+  "categories": [
+    {
+      "name": "Tên Danh Mục",
+      "sortOrder": 0,
+      "items": [
+        { "name": "Tên Món", "price": 35000 }
+      ]
+    }
+  ]
+}`;
