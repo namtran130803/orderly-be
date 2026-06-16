@@ -16,6 +16,11 @@ const envSchema = z.object({
     .default('false')
     .transform((v) => v === 'true'),
   GROQ_API_KEY: z.string().min(1, 'GROQ_API_KEY is required'),
+  SEPAY_WEBHOOK_SECRET: z.string().optional(),
+  PAYMENT_CODE_PREFIX: z.string().default('OD'),
+  PAYMENT_BANK_NAME: z.string().default('MBBank'),
+  PAYMENT_BANK_ACCOUNT_NO: z.string().default('0886138003'),
+  PAYMENT_BANK_ACCOUNT_NAME: z.string().default('TRAN TRONG NAM'),
 });
 
 export const env = envSchema.parse(process.env);

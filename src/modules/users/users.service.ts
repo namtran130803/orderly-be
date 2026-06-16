@@ -1,16 +1,61 @@
 import { prisma } from '@/config/prisma';
+import { createPaginationMeta, getPaginationParams } from '@/lib/pagination';
 import { ApiError } from '@/lib/response';
+import type { UserListQueryDto } from '@/modules/users/users.schema';
+import type { Prisma } from '@prisma/client';
 
-export async function listUsers() {
-  return prisma.user.findMany({
-    select: {
-      id: true,
-      name: true,
-      phone: true,
-      createdAt: true,
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+export async function listUsers(query: UserListQueryDto) {
+  const { page, limit, skip, take } = getPaginationParams(query);
+  const q = query.q?.trim();
+  const where: Prisma.UserWhereInput = {
+    ...(query.name
+      ? { name: { contains: query.name, mode: 'insensitive' } }
+      : {}),
+    ...(query.phone
+      ? { phone: { contains: query.phone, mode: 'insensitive' } }
+      : {}),
+    ...(query.storeName
+      ? {
+          stores: {
+            some: { name: { contains: query.storeName, mode: 'insensitive' } },
+          },
+        }
+      : {}),
+    ...(q
+      ? {
+          OR: [
+            { name: { contains: q, mode: 'insensitive' } },
+            { phone: { contains: q, mode: 'insensitive' } },
+            { stores: { some: { name: { contains: q, mode: 'insensitive' } } } },
+          ],
+        }
+      : {}),
+  };
+
+  const [items, total] = await Promise.all([
+    prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        createdAt: true,
+        stores: {
+          select: {
+            id: true,
+            name: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take,
+    }),
+    prisma.user.count({ where }),
+  ]);
+
+  return { items, pagination: createPaginationMeta(page, limit, total) };
 }
 
 export async function getUserRoles(userId: number) {

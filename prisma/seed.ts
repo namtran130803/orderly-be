@@ -6,6 +6,8 @@ import {
   LeaveRequestStatus,
   OverrideType,
   SalaryType,
+  SubscriptionSource,
+  SubscriptionStatus,
   type Prisma,
 } from "@prisma/client";
 import bcrypt from "bcrypt";
@@ -25,6 +27,182 @@ const SHIFT_LEAD_EXCLUDE = new Set<string>([
   PERMS.employees.delete,
   PERMS.expenses.delete,
 ]);
+
+const SUBSCRIPTION_PLANS = [
+  { code: "D30", name: "Gói 30 ngày", days: 30, price: 2_000 },
+  { code: "D90", name: "Gói 90 ngày", days: 90, price: 3_000 },
+  { code: "D180", name: "Gói 180 ngày", days: 180, price: 4_000 },
+  { code: "D360", name: "Gói 360 ngày", days: 360, price: 5_000 },
+];
+
+async function seedSubscriptionPlans() {
+  for (const plan of SUBSCRIPTION_PLANS) {
+    await prisma.subscriptionPlan.upsert({
+      where: { days: plan.days },
+      update: {
+        code: plan.code,
+        name: plan.name,
+        price: plan.price,
+        isActive: true,
+      },
+      create: {
+        ...plan,
+        isActive: true,
+      },
+    });
+  }
+}
+
+async function seedActiveSubscription(storeId: number, days = 360) {
+  const startsAt = new Date();
+  const endsAt = new Date(startsAt);
+  endsAt.setUTCDate(endsAt.getUTCDate() + days);
+
+  await prisma.storeSubscription.upsert({
+    where: { storeId },
+    update: {
+      status: SubscriptionStatus.ACTIVE,
+      currentPeriodStart: startsAt,
+      currentPeriodEnd: endsAt,
+    },
+    create: {
+      storeId,
+      status: SubscriptionStatus.ACTIVE,
+      currentPeriodStart: startsAt,
+      currentPeriodEnd: endsAt,
+    },
+  });
+
+  await prisma.subscriptionPeriod.create({
+    data: {
+      storeId,
+      source: SubscriptionSource.LEGACY_GRACE,
+      days,
+      startsAt,
+      endsAt,
+    },
+  });
+}
+
+async function seedBillingHistory(storeId: number, userId: number) {
+  const plans = await prisma.subscriptionPlan.findMany({
+    where: { days: { in: [30, 90, 180] } },
+    orderBy: { days: "asc" },
+  });
+  const plan30 = plans.find((p) => p.days === 30);
+  const plan90 = plans.find((p) => p.days === 90);
+  if (!plan30 || !plan90) return;
+
+  const paidAt = new Date();
+  paidAt.setUTCDate(paidAt.getUTCDate() - 45);
+  const paymentStart = new Date(paidAt);
+  const paymentEnd = new Date(paymentStart);
+  paymentEnd.setUTCDate(paymentEnd.getUTCDate() + plan30.days);
+
+  const paidPayment = await prisma.payment.create({
+    data: {
+      storeId,
+      userId,
+      planId: plan30.id,
+      amount: plan30.price,
+      paymentCode: `SEEDPAID${storeId}${Date.now().toString(36).toUpperCase()}`,
+      transferContent: `SEEDPAID${storeId}`,
+      provider: "SEPAY",
+      status: "PAID",
+      providerTxnId: `seed-paid-${storeId}`,
+      paidAt,
+    },
+  });
+
+  await prisma.subscriptionPeriod.create({
+    data: {
+      storeId,
+      paymentId: paidPayment.id,
+      source: SubscriptionSource.PAYMENT,
+      days: plan30.days,
+      startsAt: paymentStart,
+      endsAt: paymentEnd,
+    },
+  });
+
+  const adjustmentStart = new Date();
+  adjustmentStart.setUTCDate(adjustmentStart.getUTCDate() - 12);
+  const adjustmentEnd = new Date(adjustmentStart);
+  adjustmentEnd.setUTCDate(adjustmentEnd.getUTCDate() + 90);
+  await prisma.subscriptionPeriod.create({
+    data: {
+      storeId,
+      source: SubscriptionSource.ADMIN_ADJUSTMENT,
+      days: 90,
+      startsAt: adjustmentStart,
+      endsAt: adjustmentEnd,
+    },
+  });
+
+  await prisma.payment.create({
+    data: {
+      storeId,
+      userId,
+      planId: plan90.id,
+      amount: plan90.price,
+      paymentCode: `SEEDWAIT${storeId}${Date.now().toString(36).toUpperCase()}`,
+      transferContent: `SEEDWAIT${storeId}`,
+      provider: "SEPAY",
+      status: "PENDING",
+    },
+  });
+}
+
+/** Tạo nhiều payment + subscriptionPeriod để test phân trang */
+async function seedBulkPaymentsAndPeriods(storeId: number, userId: number, count = 200) {
+  const plans = await prisma.subscriptionPlan.findMany({ where: { isActive: true }, orderBy: { days: 'asc' } });
+  if (plans.length === 0) return;
+
+  for (let i = 0; i < count; i++) {
+    const plan = plans[i % plans.length];
+    const createdAt = new Date();
+    createdAt.setUTCDate(createdAt.getUTCDate() - i);
+    const status = i % 4 === 0 ? 'PAID' : i % 4 === 1 ? 'PENDING' : i % 4 === 2 ? 'EXPIRED' : 'CANCELLED';
+
+    const paymentData: any = {
+      storeId,
+      userId,
+      planId: plan.id,
+      amount: plan.price,
+      paymentCode: `SEEDPAY${storeId}-${i}-${Date.now().toString(36).toUpperCase()}`,
+      transferContent: `SEEDPAY${storeId}-${i}`,
+      provider: 'SEPAY',
+      status,
+      createdAt,
+    };
+    if (status === 'PAID') {
+      paymentData.paidAt = createdAt;
+      paymentData.providerTxnId = `seed-paid-${storeId}-${i}`;
+    }
+
+    const payment = await prisma.payment.create({ data: paymentData });
+
+    if (status === 'PAID') {
+      const startsAt = new Date(createdAt);
+      const endsAt = new Date(startsAt);
+      endsAt.setUTCDate(endsAt.getUTCDate() + plan.days);
+      await prisma.subscriptionPeriod.create({
+        data: {
+          storeId,
+          paymentId: payment.id,
+          source: SubscriptionSource.PAYMENT,
+          days: plan.days,
+          startsAt,
+          endsAt,
+        },
+      });
+    }
+
+    if ((i + 1) % 50 === 0) {
+      console.log(`   • Seeded ${i + 1}/${count} payments for store ${storeId}`);
+    }
+  }
+}
 
 // ============================================
 // QUYỀN NHÂN VIÊN THEO VAI TRÒ
@@ -1372,6 +1550,11 @@ async function main() {
       "storeUserRole",
       "storeRolePermission",
       "attendanceEditLog",
+      "paymentWebhookLog",
+      "subscriptionPeriod",
+      "payment",
+      "userTrialGrant",
+      "storeSubscription",
       // Bảng dữ liệu chính
       "orderItem",
       "order",
@@ -1391,6 +1574,7 @@ async function main() {
       "user",
       "role",
       "permission",
+      "subscriptionPlan",
     ] as const) {
       await (prisma as any)[model].deleteMany();
     }
@@ -1399,6 +1583,9 @@ async function main() {
 
   await bootstrapRbac();
   console.log("🔐 Đã đồng bộ RBAC\n");
+
+  await seedSubscriptionPlans();
+  console.log("Seeded subscription plans: 30/90/180/360 days");
 
   const passwordHash = await bcrypt.hash("password123", 12);
 
@@ -1432,6 +1619,10 @@ async function main() {
       role: StoreUserRoleType.owner,
     },
   });
+  await seedActiveSubscription(store1.id);
+  await seedBillingHistory(store1.id, admin.id);
+  // Bulk seed payments/periods for pagination tests
+  await seedBulkPaymentsAndPeriods(store1.id, admin.id, 400);
 
   const staff1 = await seedOrderlyCoffee(store1.id, passwordHash);
   await seedScheduleOverrides(store1.id);
@@ -1486,6 +1677,9 @@ async function main() {
       role: StoreUserRoleType.owner,
     },
   });
+  await seedActiveSubscription(store2.id);
+  await seedBillingHistory(store2.id, owner2.id);
+  await seedBulkPaymentsAndPeriods(store2.id, owner2.id, 250);
 
   const staff2 = await seedBonBon(store2.id, passwordHash);
   await seedStoreData(store2.id, "tea");
@@ -1519,6 +1713,9 @@ async function main() {
       role: StoreUserRoleType.owner,
     },
   });
+  await seedActiveSubscription(store3.id);
+  await seedBillingHistory(store3.id, owner3.id);
+  await seedBulkPaymentsAndPeriods(store3.id, owner3.id, 200);
 
   const staff3 = await seedBakery(store3.id, passwordHash);
   await seedStoreData(store3.id, "bakery");

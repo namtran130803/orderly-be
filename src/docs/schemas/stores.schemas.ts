@@ -1,28 +1,35 @@
-import type { SchemaObject } from 'openapi3-ts/oas31';
+import type { SchemaObject } from "openapi3-ts/oas31";
 
 export const storeSchemas: Record<string, SchemaObject> = {
   Store: {
-    type: 'object',
+    type: "object",
     properties: {
-      id: { type: 'integer', example: 1 },
-      name: { type: 'string', example: 'Chi nhánh Quận 1' },
-      address: { type: 'string', example: '123 Lê Lợi' },
-      roleName: { type: 'array', items: { type: 'string' }, example: ['Quản lý'] },
+      id: { type: "integer", example: 1 },
+      name: { type: "string", example: "Chi nhánh Quận 1" },
+      address: { type: ["string", "null"], example: "123 Lê Lợi" },
+      userId: { type: "integer", example: 1 },
+      createdAt: { type: "string", format: "date-time" },
+      roleName: {
+        type: "array",
+        items: { type: "string" },
+        example: ["Quản lý"],
+      },
+      subscription: { $ref: "#/components/schemas/StoreSubscription" },
     },
   },
   CreateStoreRequest: {
-    type: 'object',
-    required: ['name'],
+    type: "object",
+    required: ["name"],
     properties: {
-      name: { type: 'string', example: 'Chi nhánh Quận 1' },
-      address: { type: 'string', example: '123 Lê Lợi' },
+      name: { type: "string", example: "Chi nhánh Quận 1" },
+      address: { type: "string", example: "123 Lê Lợi" },
     },
   },
   UpdateStoreRequest: {
-    type: 'object',
+    type: "object",
     properties: {
-      name: { type: 'string', example: 'Chi nhánh Quận 1 (Sửa)' },
-      address: { type: 'string', example: '456 Nguyễn Huệ' },
+      name: { type: "string", example: "Chi nhánh Quận 1 (Sửa)" },
+      address: { type: "string", example: "456 Nguyễn Huệ" },
     },
   },
 };

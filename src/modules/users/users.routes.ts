@@ -6,6 +6,7 @@ import { validate } from "@/middleware/validate";
 import * as controller from "@/modules/users/users.controller";
 import {
   assignRoleSchema,
+  userListQuerySchema,
 } from "@/modules/users/users.schema";
 import { PERMS } from "@/config/rbac/rbac-defs";
 
@@ -13,7 +14,12 @@ const router = Router({ mergeParams: true });
 
 router.use(authenticate, requireSystemAccess);
 
-router.get("/", requirePermission(PERMS.users.list), controller.listUsers);
+router.get(
+  "/",
+  requirePermission(PERMS.users.list),
+  validate(userListQuerySchema, "query"),
+  controller.listUsers,
+);
 router.get(
   "/:userId/roles",
   requirePermission(PERMS.users.role_list),

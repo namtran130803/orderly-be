@@ -3,6 +3,7 @@ import { prisma } from "@/config/prisma";
 import { ApiError } from "@/lib/response";
 import { PERMS } from "@/config/rbac/rbac-defs";
 import { requireSystemAccess } from "@/middleware/requireSystemAccess";
+import { resolveSubscriptionSnapshot } from "@/modules/subscriptions/subscriptions.service";
 
 export async function requireStoreAccess(
   req: Request,
@@ -19,6 +20,10 @@ export async function requireStoreAccess(
     // 1. Kiểm tra sự tồn tại của cửa hàng
     const store = await prisma.store.findUnique({ where: { id: storeNumId } });
     if (!store) throw ApiError.notFound("Store");
+
+    const subscription = await prisma.storeSubscription.findUnique({
+      where: { storeId: storeNumId },
+    });
 
     // 2. Truy vấn thông tin vai trò của User trong cửa hàng này
     const storeUser = await prisma.storeUser.findFirst({
@@ -87,6 +92,7 @@ export async function requireStoreAccess(
     }
 
     req.store = store;
+    req.storeSubscription = resolveSubscriptionSnapshot(subscription);
     next();
   } catch (err) {
     next(err);

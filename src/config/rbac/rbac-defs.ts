@@ -119,6 +119,18 @@ export const PERMS = {
     lock: "payroll.lock",
     unlock: "payroll.unlock",
   },
+  subscriptions: {
+    current: "subscriptions.current",
+    payments: "subscriptions.payments",
+    periods: "subscriptions.periods",
+    checkout: "subscriptions.checkout",
+    admin_payments: "subscriptions.admin_payments",
+    admin_periods: "subscriptions.admin_periods",
+    admin_renew: "subscriptions.admin_renew",
+    admin_plan_create: "subscriptions.admin_plan_create",
+    admin_plan_update: "subscriptions.admin_plan_update",
+    admin_plan_delete: "subscriptions.admin_plan_delete",
+  },
   ai: {
     menu_analyze: 'ai.menu_analyze',
     menu_generate: 'ai.menu_generate',
@@ -307,6 +319,22 @@ export const MODULE_DEFS: ModuleDef[] = [
     ],
   },
   {
+    code: "subscriptions",
+    name: "Gia hạn",
+    apis: [
+      { code: PERMS.subscriptions.current, name: "Xem trạng thái gia hạn" },
+      { code: PERMS.subscriptions.payments, name: "Xem lịch sử thanh toán" },
+      { code: PERMS.subscriptions.periods, name: "Xem lịch sử gia hạn" },
+      { code: PERMS.subscriptions.checkout, name: "Tạo thanh toán gia hạn" },
+      { code: PERMS.subscriptions.admin_payments, name: "Xem thanh toán toàn hệ thống" },
+      { code: PERMS.subscriptions.admin_periods, name: "Xem gia hạn toàn hệ thống" },
+      { code: PERMS.subscriptions.admin_renew, name: "Gia hạn thủ công" },
+      { code: PERMS.subscriptions.admin_plan_create, name: "Thêm gói gia hạn" },
+      { code: PERMS.subscriptions.admin_plan_update, name: "Sửa gói gia hạn" },
+      { code: PERMS.subscriptions.admin_plan_delete, name: "Xóa gói gia hạn" },
+    ],
+  },
+  {
     code: "ai",
     name: "AI",
     apis: [
@@ -396,6 +424,11 @@ export const STORE_OWNER_PERMS: string[] = [
   PERMS.payroll.detail,
   PERMS.payroll.lock,
   PERMS.payroll.unlock,
+  // subscriptions
+  PERMS.subscriptions.current,
+  PERMS.subscriptions.payments,
+  PERMS.subscriptions.periods,
+  PERMS.subscriptions.checkout,
   // ai
   PERMS.ai.menu_analyze,
   PERMS.ai.menu_generate,

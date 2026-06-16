@@ -20,6 +20,7 @@ import { attendanceSchemas } from "@/docs/schemas/attendance.schemas";
 import { leaveSchemas } from "@/docs/schemas/leave.schemas";
 import { payrollSchemas } from "@/docs/schemas/payroll.schemas";
 import { aiSchemas } from "@/docs/schemas/ai.schemas";
+import { subscriptionSchemas } from "@/docs/schemas/subscriptions.schemas";
 
 import { authPaths } from "@/docs/paths/auth.paths";
 import { storePaths } from "@/docs/paths/stores.paths";
@@ -41,6 +42,7 @@ import { attendancePaths } from "@/docs/paths/attendance.paths";
 import { leavePaths } from "@/docs/paths/leave.paths";
 import { payrollPaths } from "@/docs/paths/payroll.paths";
 import { aiPaths } from "@/docs/paths/ai.paths";
+import { subscriptionPaths } from "@/docs/paths/subscriptions.paths";
 
 const TAGS: Record<string, string> = {
   Auth: "Xác thực",
@@ -63,6 +65,7 @@ const TAGS: Record<string, string> = {
   Leave: "Đơn nghỉ",
   Payroll: "Bảng lương",
   AI: "AI",
+  Subscriptions: "Gia hạn",
 };
 
 const rawPaths = {
@@ -86,6 +89,7 @@ const rawPaths = {
   ...leavePaths,
   ...payrollPaths,
   ...aiPaths,
+  ...subscriptionPaths,
 };
 
 for (const pathObj of Object.values(rawPaths)) {
@@ -103,16 +107,16 @@ export const openApiSpec: OpenAPIObject = {
     version: "1.0.0",
     description: `
 ## Giới thiệu
-REST API cho ứng dụng POS quán cà phê **Orderly**.
+REST API cho ứng dụng POS quán cà phê Orderly.
 
 ## Xác thực
 Hầu hết endpoint yêu cầu JWT Bearer token.
 1. Gọi \`POST /api/auth/login\` để lấy token
-2. Nhấn **Authorize** ở góc phải → nhập token
+2. Nhấn Authorize và nhập token
 
 ## Response format
-- **Thành công**: \`{ success: true, data: ..., message: "..." }\`
-- **Lỗi**: \`{ success: false, error: { code: "...", message: "...", details?: [...] } }\`
+- Thành công: \`{ success: true, data: ..., message: "..." }\`
+- Lỗi: \`{ success: false, error: { code: "...", message: "...", details?: [...] } }\`
     `.trim(),
     contact: { name: "Orderly Team" },
   },
@@ -121,29 +125,27 @@ Hầu hết endpoint yêu cầu JWT Bearer token.
     { url: "http://api:3000", description: "Docker" },
   ],
   tags: [
-    { name: TAGS["Auth"], description: "Đăng ký, đăng nhập, thông tin user" },
-    { name: TAGS["Users"], description: "Quản lý người dùng hệ thống" },
-    { name: TAGS["Stores"], description: "Quản lý cửa hàng" },
-    { name: TAGS["Categories"], description: "Danh mục món" },
+    { name: TAGS.Auth, description: "Đăng ký, đăng nhập, thông tin user" },
+    { name: TAGS.Users, description: "Quản lý người dùng hệ thống" },
+    { name: TAGS.Stores, description: "Quản lý cửa hàng" },
+    { name: TAGS.Categories, description: "Danh mục món" },
     { name: TAGS["Menu Items"], description: "Món ăn / đồ uống" },
-    { name: TAGS["Areas"], description: "Khu vực bàn" },
-    { name: TAGS["Tables"], description: "Bàn trong khu vực" },
-    { name: TAGS["Statuses"], description: "Quy trình xử lý đơn" },
-    { name: TAGS["Orders"], description: "Quản lý đơn hàng" },
-    { name: TAGS["Expenses"], description: "Chi phí" },
-    { name: TAGS["Dashboard"], description: "Thống kê" },
-    { name: TAGS["Roles & Permissions"], description: "Vai trò & quyền hạn" },
-    { name: TAGS["System"], description: "Mô-đun hệ thống" },
-    { name: TAGS["Employees"], description: "Nhân viên cửa hàng" },
+    { name: TAGS.Areas, description: "Khu vực bàn" },
+    { name: TAGS.Tables, description: "Bàn trong khu vực" },
+    { name: TAGS.Statuses, description: "Quy trình xử lý đơn" },
+    { name: TAGS.Orders, description: "Quản lý đơn hàng" },
+    { name: TAGS.Expenses, description: "Chi phí" },
+    { name: TAGS.Dashboard, description: "Thống kê" },
+    { name: TAGS["Roles & Permissions"], description: "Vai trò và quyền hạn" },
+    { name: TAGS.System, description: "Mô-đun hệ thống" },
+    { name: TAGS.Employees, description: "Nhân viên cửa hàng" },
     { name: TAGS["Store Roles"], description: "Vai trò cấp cửa hàng" },
-    {
-      name: TAGS["Schedule"],
-      description: "Ngày làm mặc định & ngày đặc biệt",
-    },
-  { name: TAGS["Attendance"], description: "QR chấm công & lưới tháng" },
-  { name: TAGS["Leave"], description: "Đơn nghỉ có lương / không lương" },
-  { name: TAGS["Payroll"], description: "Xem, khóa & mở khóa kỳ lương" },
-  { name: TAGS["AI"], description: "Tạo menu bằng AI (Groq)" },
+    { name: TAGS.Schedule, description: "Ngày làm mặc định và ngày đặc biệt" },
+    { name: TAGS.Attendance, description: "QR chấm công và lưới tháng" },
+    { name: TAGS.Leave, description: "Đơn nghỉ có lương / không lương" },
+    { name: TAGS.Payroll, description: "Xem, khóa và mở khóa kỳ lương" },
+    { name: TAGS.AI, description: "Tạo menu bằng AI" },
+    { name: TAGS.Subscriptions, description: "Gói, thanh toán, gia hạn và Sepay webhook" },
   ],
   components: {
     securitySchemes: {
@@ -172,10 +174,11 @@ Hầu hết endpoint yêu cầu JWT Bearer token.
       ...storeRoleSchemas,
       ...scheduleSchemas,
       ...attendanceSchemas,
-    ...leaveSchemas,
-    ...payrollSchemas,
-    ...aiSchemas,
-  } as Record<string, any>,
+      ...leaveSchemas,
+      ...payrollSchemas,
+      ...aiSchemas,
+      ...subscriptionSchemas,
+    } as Record<string, any>,
   },
   security: [{ BearerAuth: [] }],
   paths: rawPaths,

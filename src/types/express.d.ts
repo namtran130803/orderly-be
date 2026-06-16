@@ -1,4 +1,5 @@
 import { Store } from '@prisma/client';
+import type { SubscriptionSnapshot } from '@/modules/subscriptions/subscriptions.service';
 
 export interface AuthUser {
   id: number;
@@ -13,6 +14,7 @@ declare global {
     interface Request {
       user?: AuthUser;
       store?: Store;
+      storeSubscription?: SubscriptionSnapshot;
     }
   }
 }

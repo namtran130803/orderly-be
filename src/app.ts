@@ -20,6 +20,9 @@ import scheduleRoutes       from '@/modules/schedule/schedule.routes';
 import attendanceRoutes     from '@/modules/attendance/attendance.routes';
 import leaveRoutes          from '@/modules/leave/leave.routes';
 import payrollRoutes        from '@/modules/payroll/payroll.routes';
+import subscriptionRoutes   from '@/modules/subscriptions/subscriptions.routes';
+import subscriptionAdminRoutes from '@/modules/subscriptions/subscriptions-admin.routes';
+import sepayWebhookRoutes   from '@/modules/webhooks/sepay.routes';
 
 import systemRoutes         from '@/modules/system/system.routes';
 import roleRoutes           from '@/modules/roles/roles.routes';
@@ -36,6 +39,7 @@ app.use(helmet({
   contentSecurityPolicy: false,
 }));
 app.use(cors());
+app.use('/api/webhooks/sepay', express.raw({ type: 'application/json' }), sepayWebhookRoutes);
 app.use(express.json({ limit: '10mb' }));
 
 app.get('/api/openapi.json', (_req, res) => {
@@ -63,6 +67,7 @@ if (env.NODE_ENV !== 'production') {
 // Global routes
 app.use('/api/auth',                        authRoutes);
 app.use('/api/users',                       userRoutes);
+app.use('/api/subscriptions',               subscriptionAdminRoutes);
 app.use('/api/system',                      systemRoutes);
 app.use('/api/roles',                       roleRoutes);
 
@@ -84,6 +89,7 @@ storeRouter.use('/schedule',                scheduleRoutes);
 storeRouter.use('/attendance',              attendanceRoutes);
 storeRouter.use('/leave',                   leaveRoutes);
 storeRouter.use('/payroll',                 payrollRoutes);
+storeRouter.use('/subscription',            subscriptionRoutes);
 storeRouter.use('/roles',                   storeRoleRoutes);
 storeRouter.use('/employees',               employeeRoutes);
 storeRouter.use('/ai',                      aiRoutes);

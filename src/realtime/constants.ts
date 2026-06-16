@@ -5,6 +5,7 @@ export function storeOrdersChannel(storeId: number): string {
 
 export const REALTIME_EVENTS = {
   ORDER_CHANGED: 'order.changed',
+  SUBSCRIPTION_PAYMENT_PAID: 'subscription.payment_paid',
 } as const;
 
 export type OrderRealtimeAction =
@@ -39,3 +40,17 @@ export type OrderRealtimePayload =
       action: Exclude<OrderRealtimeAction, 'deleted'>;
       order: OrderRealtimeOrder;
     };
+
+export type SubscriptionRealtimePayload = {
+  paymentId: number;
+  paymentCode: string;
+  amount: number;
+  planDays: number;
+  subscription: {
+    status: 'TRIALING' | 'ACTIVE' | 'EXPIRED';
+    isReadOnly: boolean;
+    currentPeriodStart: string | null;
+    currentPeriodEnd: string | null;
+    daysRemaining: number;
+  };
+};

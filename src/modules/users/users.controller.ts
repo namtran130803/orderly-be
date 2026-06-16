@@ -1,12 +1,16 @@
 import { Request, Response, NextFunction } from 'express';
 import * as service from '@/modules/users/users.service';
-import { sendSuccess } from '@/lib/response';
-import type { AssignRolesDto } from '@/modules/users/users.schema';
+import { sendPaginated, sendSuccess } from '@/lib/response';
+import type {
+  AssignRolesDto,
+  UserListQueryDto,
+} from '@/modules/users/users.schema';
 
 export async function listUsers(req: Request, res: Response, next: NextFunction) {
   try {
-    const users = await service.listUsers();
-    sendSuccess(res, users, 'Danh sách người dùng');
+    const query = req.query as unknown as UserListQueryDto;
+    const result = await service.listUsers(query);
+    sendPaginated(res, result.items, result.pagination);
   } catch (err) {
     next(err);
   }
