@@ -222,11 +222,19 @@ const PERMS_BARISTA: string[] = [
 // ============================================================
 async function seedSubscriptionPlans() {
   for (const plan of SUBSCRIPTION_PLANS) {
-    await prisma.subscriptionPlan.upsert({
-      where: { days: plan.days },
-      update: { code: plan.code, name: plan.name, price: plan.price, isActive: true },
-      create: { ...plan, isActive: true },
+    const existing = await prisma.subscriptionPlan.findFirst({
+      where: { code: plan.code },
     });
+    if (existing) {
+      await prisma.subscriptionPlan.update({
+        where: { id: existing.id },
+        data: { name: plan.name, days: plan.days, price: plan.price, isActive: true },
+      });
+    } else {
+      await prisma.subscriptionPlan.create({
+        data: { ...plan, isActive: true },
+      });
+    }
   }
 }
 

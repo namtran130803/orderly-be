@@ -126,13 +126,29 @@ export async function createPlan(dto: CreateSubscriptionPlanDto) {
   const code = (dto.code?.trim() || `D${dto.days}`).toUpperCase();
   const name = dto.name?.trim() || `Gói ${dto.days} ngày`;
 
-  const existing = await prisma.subscriptionPlan.findFirst({
-    where: {
-      OR: [{ code }, { days: dto.days }],
-    },
+  // Check conflict theo code (chỉ active)
+  const existingByCode = await prisma.subscriptionPlan.findFirst({
+    where: { isActive: true, code },
   });
-  if (existing) {
-    throw ApiError.conflict("Gói gia hạn đã tồn tại");
+  if (existingByCode) {
+    throw ApiError.conflict(`Mã gói "${code}" đã tồn tại`);
+  }
+
+  // Nếu có plan inactive cùng code → reactivate
+  const inactiveByCode = await prisma.subscriptionPlan.findFirst({
+    where: { isActive: false, code },
+  });
+  if (inactiveByCode) {
+    return prisma.subscriptionPlan.update({
+      where: { id: inactiveByCode.id },
+      data: {
+        code,
+        name,
+        days: dto.days,
+        price: dto.price,
+        isActive: true,
+      },
+    });
   }
 
   return prisma.subscriptionPlan.create({
@@ -153,17 +169,15 @@ export async function updatePlan(planId: number, dto: UpdateSubscriptionPlanDto)
   if (!existing) throw ApiError.notFound("Subscription plan");
 
   const code = dto.code?.trim().toUpperCase();
-  if (code || dto.days) {
+  if (code) {
     const conflict = await prisma.subscriptionPlan.findFirst({
       where: {
+        isActive: true,
         id: { not: planId },
-        OR: [
-          ...(code ? [{ code }] : []),
-          ...(dto.days ? [{ days: dto.days }] : []),
-        ],
+        code,
       },
     });
-    if (conflict) throw ApiError.conflict("Gói gia hạn đã tồn tại");
+    if (conflict) throw ApiError.conflict(`Mã gói "${code}" đã tồn tại`);
   }
 
   return prisma.subscriptionPlan.update({
@@ -345,10 +359,10 @@ export async function createCheckout(
   userId: number,
   planDays: number,
 ) {
-  const plan = await prisma.subscriptionPlan.findUnique({
-    where: { days: planDays },
+  const plan = await prisma.subscriptionPlan.findFirst({
+    where: { days: planDays, isActive: true },
   });
-  if (!plan || !plan.isActive) {
+  if (!plan) {
     throw ApiError.badRequest("Gói gia hạn không hợp lệ");
   }
 
