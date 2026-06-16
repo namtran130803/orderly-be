@@ -21,6 +21,7 @@ import { leaveSchemas } from "@/docs/schemas/leave.schemas";
 import { payrollSchemas } from "@/docs/schemas/payroll.schemas";
 import { aiSchemas } from "@/docs/schemas/ai.schemas";
 import { subscriptionSchemas } from "@/docs/schemas/subscriptions.schemas";
+import { paymentsSchemas } from "@/docs/schemas/payments.schemas";
 
 import { authPaths } from "@/docs/paths/auth.paths";
 import { storePaths } from "@/docs/paths/stores.paths";
@@ -43,6 +44,8 @@ import { leavePaths } from "@/docs/paths/leave.paths";
 import { payrollPaths } from "@/docs/paths/payroll.paths";
 import { aiPaths } from "@/docs/paths/ai.paths";
 import { subscriptionPaths } from "@/docs/paths/subscriptions.paths";
+import { paymentsPaths } from "@/docs/paths/payments.paths";
+import { webhooksPaths } from "@/docs/paths/webhooks.paths";
 
 const TAGS: Record<string, string> = {
   Auth: "Xác thực",
@@ -66,6 +69,8 @@ const TAGS: Record<string, string> = {
   Payroll: "Bảng lương",
   AI: "AI",
   Subscriptions: "Gia hạn",
+  Payments: "Thanh toán",
+  Webhooks: "Webhooks",
 };
 
 const rawPaths = {
@@ -90,6 +95,8 @@ const rawPaths = {
   ...payrollPaths,
   ...aiPaths,
   ...subscriptionPaths,
+  ...paymentsPaths,
+  ...webhooksPaths,
 };
 
 for (const pathObj of Object.values(rawPaths)) {
@@ -145,7 +152,9 @@ Hầu hết endpoint yêu cầu JWT Bearer token.
     { name: TAGS.Leave, description: "Đơn nghỉ có lương / không lương" },
     { name: TAGS.Payroll, description: "Xem, khóa và mở khóa kỳ lương" },
     { name: TAGS.AI, description: "Tạo menu bằng AI" },
-    { name: TAGS.Subscriptions, description: "Gói, thanh toán, gia hạn và Sepay webhook" },
+    { name: TAGS.Subscriptions, description: "Gói, thanh toán, gia hạn" },
+    { name: TAGS.Payments, description: "Danh sách thanh toán toàn hệ thống" },
+    { name: TAGS.Webhooks, description: "Webhooks nhận từ bên thứ ba" },
   ],
   components: {
     securitySchemes: {
@@ -178,6 +187,7 @@ Hầu hết endpoint yêu cầu JWT Bearer token.
       ...payrollSchemas,
       ...aiSchemas,
       ...subscriptionSchemas,
+      ...paymentsSchemas,
     } as Record<string, any>,
   },
   security: [{ BearerAuth: [] }],

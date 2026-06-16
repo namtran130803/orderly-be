@@ -13,7 +13,12 @@ export async function authenticate(
     if (!authHeader?.startsWith('Bearer ')) throw ApiError.unauthorized();
 
     const token = authHeader.slice(7);
-    const payload = verifyToken(token);
+    let payload;
+    try {
+      payload = verifyToken(token);
+    } catch (err) {
+      throw ApiError.unauthorized('Phiên làm việc đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.');
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: Number(payload.sub) },

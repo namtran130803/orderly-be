@@ -22,6 +22,7 @@ import leaveRoutes          from '@/modules/leave/leave.routes';
 import payrollRoutes        from '@/modules/payroll/payroll.routes';
 import subscriptionRoutes   from '@/modules/subscriptions/subscriptions.routes';
 import subscriptionAdminRoutes from '@/modules/subscriptions/subscriptions-admin.routes';
+import paymentRoutes        from '@/modules/payments/payments.routes';
 import sepayWebhookRoutes   from '@/modules/webhooks/sepay.routes';
 
 import systemRoutes         from '@/modules/system/system.routes';
@@ -68,6 +69,7 @@ if (env.NODE_ENV !== 'production') {
 app.use('/api/auth',                        authRoutes);
 app.use('/api/users',                       userRoutes);
 app.use('/api/subscriptions',               subscriptionAdminRoutes);
+app.use('/api/payments',                    paymentRoutes);
 app.use('/api/system',                      systemRoutes);
 app.use('/api/roles',                       roleRoutes);
 

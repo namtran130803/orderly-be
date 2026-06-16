@@ -8,9 +8,18 @@ export async function bootstrapRbac() {
   await ensureStoreOwnerRolePermissions();
 }
 
-// Chỉ tạo permission nếu chưa có trong DB
+// Đồng bộ permission với DB (tạo mới và xóa bỏ các permission không còn định nghĩa)
 async function syncPermissions() {
   const allApis = MODULE_DEFS.flatMap((m) => m.apis);
+  const activeCodes = new Set(allApis.map((api) => api.code));
+
+  // Xóa các permission không còn trong MODULE_DEFS (quan hệ với RolePermission sẽ tự cascade delete)
+  await prisma.permission.deleteMany({
+    where: {
+      code: { notIn: Array.from(activeCodes) },
+    },
+  });
+
   const existingCodes = await prisma.permission.findMany({
     select: { code: true },
   });

@@ -203,15 +203,20 @@ export async function getStoreSubscription(storeId: number) {
   };
 }
 
-export async function listPayments(storeId: number) {
-  return prisma.payment.findMany({
+export async function getStoreSubscriptionStatus(storeId: number) {
+  const subscription = await prisma.storeSubscription.findUnique({
     where: { storeId },
-    include: {
-      plan: true,
-    },
-    orderBy: { createdAt: "desc" },
   });
+  const snapshot = resolveSubscriptionSnapshot(subscription);
+  return {
+    ...snapshot,
+    trialUsed: Boolean(
+      await prisma.userTrialGrant.findFirst({ where: { storeId } }),
+    ),
+  };
 }
+
+
 
 export async function listPeriods(storeId: number) {
   return prisma.subscriptionPeriod.findMany({
@@ -274,52 +279,6 @@ function dateRange(query: Pick<SubscriptionHistoryQueryDto, "from" | "to">) {
   };
 }
 
-export async function listAllPayments(query: SubscriptionHistoryQueryDto) {
-  const { page, limit, skip, take } = getPaginationParams(query);
-  const q = query.q?.trim();
-  const createdAt = dateRange(query);
-  const where: Prisma.PaymentWhereInput = {
-    ...(query.status ? { status: query.status } : {}),
-    ...(createdAt ? { createdAt } : {}),
-    ...(query.phone
-      ? { user: { phone: { contains: query.phone, mode: "insensitive" } } }
-      : {}),
-    ...(query.userName
-      ? { user: { name: { contains: query.userName, mode: "insensitive" } } }
-      : {}),
-    ...(query.storeName
-      ? { store: { name: { contains: query.storeName, mode: "insensitive" } } }
-      : {}),
-    ...(q
-      ? {
-          OR: [
-            { paymentCode: { contains: q, mode: "insensitive" } },
-            { transferContent: { contains: q, mode: "insensitive" } },
-            { user: { phone: { contains: q, mode: "insensitive" } } },
-            { user: { name: { contains: q, mode: "insensitive" } } },
-            { store: { name: { contains: q, mode: "insensitive" } } },
-          ],
-        }
-      : {}),
-  };
-
-  const [items, total] = await Promise.all([
-    prisma.payment.findMany({
-      where,
-      include: {
-        user: { select: { id: true, name: true, phone: true } },
-        store: { select: { id: true, name: true } },
-        plan: true,
-      },
-      orderBy: { createdAt: "desc" },
-      skip,
-      take,
-    }),
-    prisma.payment.count({ where }),
-  ]);
-
-  return { items, pagination: createPaginationMeta(page, limit, total) };
-}
 
 export async function listAllPeriods(query: SubscriptionHistoryQueryDto) {
   const { page, limit, skip, take } = getPaginationParams(query);

@@ -42,13 +42,6 @@ router.delete(
 );
 
 router.get(
-  "/payments",
-  requirePermission(PERMS.subscriptions.admin_payments),
-  validate(subscriptionHistoryQuerySchema, "query"),
-  controller.allPayments,
-);
-
-router.get(
   "/periods",
   requirePermission(PERMS.subscriptions.admin_periods),
   validate(subscriptionHistoryQuerySchema, "query"),

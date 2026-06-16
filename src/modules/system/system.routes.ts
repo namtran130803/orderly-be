@@ -10,5 +10,6 @@ const router = Router();
 router.use(authenticate, requireSystemAccess);
 
 router.get('/modules', requirePermission(PERMS.system.modules), controller.listModules);
+router.get('/overview', requirePermission(PERMS.system.overview), controller.getOverview);
 
 export default router;

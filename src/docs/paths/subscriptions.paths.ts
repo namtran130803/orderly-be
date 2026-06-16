@@ -59,51 +59,24 @@ export const subscriptionPaths: PathsObject = {
       },
     },
   },
-  "/api/stores/{storeId}/subscription": {
+  "/api/stores/{storeId}/subscription/status": {
     get: {
       tags: ["Subscriptions"],
-      summary: "Trạng thái subscription và lịch sử gia hạn gần nhất",
+      summary: "Trạng thái subscription",
       parameters: [storeIdParam],
       responses: {
         200: {
-          description: "Thông tin subscription",
+          description: "Thông tin trạng thái subscription",
           content: {
             "application/json": {
               schema: {
                 type: "object",
                 properties: {
                   success: { type: "boolean", example: true },
-                  data: {
-                    type: "object",
-                    properties: {
-                      subscription: { $ref: "#/components/schemas/StoreSubscription" },
-                      periods: {
-                        type: "array",
-                        items: { $ref: "#/components/schemas/SubscriptionPeriod" },
-                      },
-                    },
-                  },
+                  data: { $ref: "#/components/schemas/StoreSubscription" },
                   message: { type: "string" },
                 },
               },
-            },
-          },
-        },
-        ...errorResponses(401, 403, 404),
-      },
-    },
-  },
-  "/api/stores/{storeId}/subscription/payments": {
-    get: {
-      tags: ["Subscriptions"],
-      summary: "Lịch sử thanh toán của cửa hàng",
-      parameters: [storeIdParam],
-      responses: {
-        200: {
-          description: "Lịch sử thanh toán",
-          content: {
-            "application/json": {
-              schema: listResponse("#/components/schemas/Payment"),
             },
           },
         },
@@ -187,38 +160,11 @@ export const subscriptionPaths: PathsObject = {
       },
     },
   },
-  "/api/subscriptions/payments": {
-    get: {
-      tags: ["Subscriptions"],
-      summary: "Admin xem lịch sử thanh toán toàn hệ thống",
-      parameters: [
-        ...historyParams,
-        {
-          name: "status",
-          in: "query",
-          schema: {
-            type: "string" as const,
-            enum: ["PENDING", "PAID", "EXPIRED", "CANCELLED", "FAILED"],
-          },
-        },
-      ],
-      responses: {
-        200: {
-          description: "Lịch sử thanh toán toàn hệ thống",
-          content: {
-            "application/json": {
-              schema: paginationResponse("#/components/schemas/Payment"),
-            },
-          },
-        },
-        ...errorResponses(401, 403),
-      },
-    },
-  },
+
   "/api/subscriptions/periods": {
     get: {
       tags: ["Subscriptions"],
-      summary: "Admin xem lịch sử gia hạn toàn hệ thống",
+      summary: "Xem lịch sử gia hạn toàn hệ thống",
       parameters: [
         ...historyParams,
         {
@@ -246,7 +192,7 @@ export const subscriptionPaths: PathsObject = {
   "/api/subscriptions/admin-renewals": {
     post: {
       tags: ["Subscriptions"],
-      summary: "Admin gia hạn thủ công cho cửa hàng",
+      summary: "Gia hạn thủ công cho cửa hàng",
       requestBody: {
         required: true,
         content: {
@@ -273,46 +219,6 @@ export const subscriptionPaths: PathsObject = {
           },
         },
         ...errorResponses(400, 401, 403, 404),
-      },
-    },
-  },
-  "/api/webhooks/sepay": {
-    post: {
-      tags: ["Subscriptions"],
-      summary: "Sepay webhook thanh toán",
-      security: [],
-      requestBody: {
-        required: true,
-        content: {
-          "application/json": {
-            schema: {
-              type: "object",
-              properties: {
-                id: { type: ["string", "integer"], example: 123456 },
-                code: { type: "string", example: "ODLX123ABC" },
-                transferType: { type: "string", example: "in" },
-                transferAmount: { type: ["integer", "string"], example: 2000 },
-                content: { type: "string", example: "ODLX123ABC" },
-              },
-            },
-          },
-        },
-      },
-      responses: {
-        200: {
-          description: "Webhook accepted",
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  success: { type: "boolean", example: true },
-                },
-              },
-            },
-          },
-        },
-        ...errorResponses(401, 500),
       },
     },
   },

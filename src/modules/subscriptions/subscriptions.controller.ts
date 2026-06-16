@@ -19,22 +19,10 @@ export async function plans(_req: Request, res: Response, next: NextFunction) {
   }
 }
 
-export async function current(req: Request, res: Response, next: NextFunction) {
+export async function status(req: Request, res: Response, next: NextFunction) {
   try {
-    const [subscription, periods] = await Promise.all([
-      service.getStoreSubscription(req.store!.id),
-      service.listPeriods(req.store!.id),
-    ]);
-    sendSuccess(res, { subscription, periods }, "Thông tin subscription");
-  } catch (err) {
-    next(err);
-  }
-}
-
-export async function payments(req: Request, res: Response, next: NextFunction) {
-  try {
-    const payments = await service.listPayments(req.store!.id);
-    sendSuccess(res, payments, "Lịch sử thanh toán");
+    const subscription = await service.getStoreSubscriptionStatus(req.store!.id);
+    sendSuccess(res, subscription, "Trạng thái subscription");
   } catch (err) {
     next(err);
   }
@@ -59,16 +47,6 @@ export async function checkout(req: Request, res: Response, next: NextFunction) 
       dto.planDays,
     );
     sendSuccess(res, result, "Tạo thanh toán thành công", 201);
-  } catch (err) {
-    next(err);
-  }
-}
-
-export async function allPayments(req: Request, res: Response, next: NextFunction) {
-  try {
-    const query = req.query as unknown as SubscriptionHistoryQueryDto;
-    const result = await service.listAllPayments(query);
-    sendPaginated(res, result.items, result.pagination);
   } catch (err) {
     next(err);
   }

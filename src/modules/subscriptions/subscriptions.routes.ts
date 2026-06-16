@@ -16,17 +16,12 @@ const router = Router({ mergeParams: true });
 router.use(authenticate, requireStoreAccess);
 
 router.get(
-  "/",
+  "/status",
   requirePermission(PERMS.subscriptions.current),
   validate(storeSubscriptionParamsSchema, "params"),
-  controller.current,
+  controller.status,
 );
-router.get(
-  "/payments",
-  requirePermission(PERMS.subscriptions.payments),
-  validate(storeSubscriptionParamsSchema, "params"),
-  controller.payments,
-);
+
 router.get(
   "/periods",
   requirePermission(PERMS.subscriptions.periods),

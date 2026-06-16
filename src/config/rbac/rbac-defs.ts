@@ -44,6 +44,7 @@ export const PERMS = {
   },
   system: {
     modules: "system.modules",
+    overview: "system.overview",
   },
   categories: {
     list: "categories.list",
@@ -121,15 +122,16 @@ export const PERMS = {
   },
   subscriptions: {
     current: "subscriptions.current",
-    payments: "subscriptions.payments",
     periods: "subscriptions.periods",
     checkout: "subscriptions.checkout",
-    admin_payments: "subscriptions.admin_payments",
     admin_periods: "subscriptions.admin_periods",
     admin_renew: "subscriptions.admin_renew",
     admin_plan_create: "subscriptions.admin_plan_create",
     admin_plan_update: "subscriptions.admin_plan_update",
     admin_plan_delete: "subscriptions.admin_plan_delete",
+  },
+  payments: {
+    list: "payments.list",
   },
   ai: {
     menu_analyze: 'ai.menu_analyze',
@@ -195,7 +197,10 @@ export const MODULE_DEFS: ModuleDef[] = [
   {
     code: "system",
     name: "Hệ thống",
-    apis: [{ code: PERMS.system.modules, name: "Xem mô-đun" }],
+    apis: [
+      { code: PERMS.system.modules, name: "Xem mô-đun" },
+      { code: PERMS.system.overview, name: "Xem tổng quan hệ thống" },
+    ],
   },
   {
     code: "categories",
@@ -323,15 +328,20 @@ export const MODULE_DEFS: ModuleDef[] = [
     name: "Gia hạn",
     apis: [
       { code: PERMS.subscriptions.current, name: "Xem trạng thái gia hạn" },
-      { code: PERMS.subscriptions.payments, name: "Xem lịch sử thanh toán" },
       { code: PERMS.subscriptions.periods, name: "Xem lịch sử gia hạn" },
       { code: PERMS.subscriptions.checkout, name: "Tạo thanh toán gia hạn" },
-      { code: PERMS.subscriptions.admin_payments, name: "Xem thanh toán toàn hệ thống" },
       { code: PERMS.subscriptions.admin_periods, name: "Xem gia hạn toàn hệ thống" },
       { code: PERMS.subscriptions.admin_renew, name: "Gia hạn thủ công" },
       { code: PERMS.subscriptions.admin_plan_create, name: "Thêm gói gia hạn" },
       { code: PERMS.subscriptions.admin_plan_update, name: "Sửa gói gia hạn" },
       { code: PERMS.subscriptions.admin_plan_delete, name: "Xóa gói gia hạn" },
+    ],
+  },
+  {
+    code: "payments",
+    name: "Thanh toán",
+    apis: [
+      { code: PERMS.payments.list, name: "Xem danh sách" },
     ],
   },
   {
@@ -426,7 +436,6 @@ export const STORE_OWNER_PERMS: string[] = [
   PERMS.payroll.unlock,
   // subscriptions
   PERMS.subscriptions.current,
-  PERMS.subscriptions.payments,
   PERMS.subscriptions.periods,
   PERMS.subscriptions.checkout,
   // ai
