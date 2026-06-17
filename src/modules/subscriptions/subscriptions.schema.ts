@@ -36,6 +36,7 @@ export const adminRenewalSchema = z.object({
 export const createSubscriptionPlanSchema = z.object({
   code: z.string().trim().min(1).max(32).optional(),
   name: z.string().trim().min(1).max(120).optional(),
+  note: z.string().trim().max(200).optional(),
   days: z.coerce.number().int().positive(),
   price: z.coerce.number().int().nonnegative(),
 });
@@ -43,6 +44,7 @@ export const createSubscriptionPlanSchema = z.object({
 export const updateSubscriptionPlanSchema = z.object({
   code: z.string().trim().min(1).max(32).optional(),
   name: z.string().trim().min(1).max(120).optional(),
+  note: z.string().trim().max(200).optional(),
   days: z.coerce.number().int().positive().optional(),
   price: z.coerce.number().int().nonnegative().optional(),
   isActive: z.boolean().optional(),

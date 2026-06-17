@@ -67,10 +67,10 @@ function randomDateBefore(daysAgo: number): Date {
 // DATA CONSTANTS
 // ============================================================
 const SUBSCRIPTION_PLANS = [
-  { code: "D30",  name: "Gói 30 ngày",  days: 30,  price: 2_000 },
-  { code: "D90",  name: "Gói 90 ngày",  days: 90,  price: 3_000 },
-  { code: "D180", name: "Gói 180 ngày", days: 180, price: 4_000 },
-  { code: "D360", name: "Gói 360 ngày", days: 360, price: 5_000 },
+  { code: "D30",  name: "Gói 30 ngày",  note: "linh hoạt cho cửa hàng mới", days: 30,  price: 2_000 },
+  { code: "D90",  name: "Gói 90 ngày",  note: "gọn cho một quý vận hành", days: 90,  price: 3_000 },
+  { code: "D180", name: "Gói 180 ngày", note: "tiết kiệm cho đội đang tăng tốc", days: 180, price: 4_000 },
+  { code: "D360", name: "Gói 360 ngày", note: "chi phí thấp nhất theo năm", days: 360, price: 5_000 },
 ];
 
 const PEAK_ORDER_HOURS = [
@@ -228,7 +228,7 @@ async function seedSubscriptionPlans() {
     if (existing) {
       await prisma.subscriptionPlan.update({
         where: { id: existing.id },
-        data: { name: plan.name, days: plan.days, price: plan.price, isActive: true },
+        data: { name: plan.name, note: plan.note, days: plan.days, price: plan.price, isActive: true },
       });
     } else {
       await prisma.subscriptionPlan.create({

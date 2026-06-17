@@ -125,6 +125,7 @@ export async function listPlans() {
 export async function createPlan(dto: CreateSubscriptionPlanDto) {
   const code = (dto.code?.trim() || `D${dto.days}`).toUpperCase();
   const name = dto.name?.trim() || `Gói ${dto.days} ngày`;
+  const note = dto.note?.trim() || "";
 
   // Check conflict theo code (chỉ active)
   const existingByCode = await prisma.subscriptionPlan.findFirst({
@@ -144,6 +145,7 @@ export async function createPlan(dto: CreateSubscriptionPlanDto) {
       data: {
         code,
         name,
+        note,
         days: dto.days,
         price: dto.price,
         isActive: true,
@@ -155,6 +157,7 @@ export async function createPlan(dto: CreateSubscriptionPlanDto) {
     data: {
       code,
       name,
+      note,
       days: dto.days,
       price: dto.price,
       isActive: true,
@@ -185,6 +188,7 @@ export async function updatePlan(planId: number, dto: UpdateSubscriptionPlanDto)
     data: {
       ...(code ? { code } : {}),
       ...(dto.name ? { name: dto.name.trim() } : {}),
+      ...(dto.note != null ? { note: dto.note.trim() } : {}),
       ...(dto.days ? { days: dto.days } : {}),
       ...(dto.price != null ? { price: dto.price } : {}),
       ...(dto.isActive != null ? { isActive: dto.isActive } : {}),

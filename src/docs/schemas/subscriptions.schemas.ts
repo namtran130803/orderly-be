@@ -16,6 +16,7 @@ export const subscriptionSchemas: Record<string, SchemaObject> = {
       id: { type: "integer", example: 1 },
       code: { type: "string", example: "D30" },
       name: { type: "string", example: "Gói 30 ngày" },
+      note: { type: "string", example: "linh hoạt cho cửa hàng mới" },
       days: { type: "integer", example: 30 },
       price: { type: "integer", example: 2000 },
       isActive: { type: "boolean", example: true },
