@@ -47,23 +47,21 @@ app.get('/api/openapi.json', (_req, res) => {
   res.json(openApiSpec);
 });
 
-if (env.NODE_ENV !== 'production') {
-  app.use(
-    '/docs',
-    apiReference({
-      spec:          { content: openApiSpec },
-      theme:         'default',
-      layout:        'modern',
-      defaultHttpClient: {
-        targetKey:   'javascript',
-        clientKey:   'fetch',
-      },
-      authentication: {
-        preferredSecurityScheme: 'BearerAuth',
-      },
-    }),
-  );
-}
+app.use(
+  '/docs',
+  apiReference({
+    spec:          { content: openApiSpec },
+    theme:         'default',
+    layout:        'modern',
+    defaultHttpClient: {
+      targetKey:   'javascript',
+      clientKey:   'fetch',
+    },
+    authentication: {
+      preferredSecurityScheme: 'BearerAuth',
+    },
+  }),
+);
 
 // Global routes
 app.use('/api/auth',                        authRoutes);
